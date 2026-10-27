@@ -1,0 +1,11 @@
+{
+  "name": "paypal-hackathon-agentpay",
+  "version": "1.0.0",
+  "description": "AgentPay - Autonomous AI Agent Commerce with PayPal Sandbox",
+  "scripts": {
+    "start:backend": "npm start --prefix backend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "verify": "npm run verify --prefix backend"
+  }
+}
