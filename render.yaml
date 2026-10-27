@@ -1,0 +1,36 @@
+services:
+  # Backend API
+  - type: web
+    name: agentpay-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: PAYPAL_ENVIRONMENT
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        value: BAAVWp9xUi33VDDH6k3KB1mIPZlUuGeb_h4-E3DcHOwkafDj56D6lKsmdbT-sGCVr4kMyfs5p0bZPBSixE
+      - key: PAYPAL_CLIENT_SECRET
+        value: EI1lEqAyD-aGvWd2LiELoVRtJQufIKc0Pf-YjUBSToUMSAK9EUcdhyw7QlSCzKP36QW0Olw7KkBur7VG
+
+  # Frontend Web App
+  - type: web
+    name: agentpay-frontend
+    env: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npx vite preview --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VITE_PAYPAL_CLIENT_ID
+        value: BAAVWp9xUi33VDDH6k3KB1mIPZlUuGeb_h4-E3DcHOwkafDj56D6lKsmdbT-sGCVr4kMyfs5p0bZPBSixE
+      - key: PAYPAL_CLIENT_ID
+        value: BAAVWp9xUi33VDDH6k3KB1mIPZlUuGeb_h4-E3DcHOwkafDj56D6lKsmdbT-sGCVr4kMyfs5p0bZPBSixE
+      - key: PAYPAL_CLIENT_SECRET
+        value: EI1lEqAyD-aGvWd2LiELoVRtJQufIKc0Pf-YjUBSToUMSAK9EUcdhyw7QlSCzKP36QW0Olw7KkBur7VG
+      - key: PAYPAL_ENV
+        value: sandbox
