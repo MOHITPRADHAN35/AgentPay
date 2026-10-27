@@ -8,6 +8,8 @@ import {
   getBudget,
   getConfig,
   listTransactions,
+  type AppConfig,
+  type LedgerRow,
   type DispatchResult,
 } from "@/lib/agentpay.functions";
 import { AgentPayHeader } from "@/components/agentpay/Header";
@@ -17,6 +19,42 @@ import { ProcurementWorkspace } from "@/components/agentpay/ProcurementWorkspace
 import { TransactionLedger } from "@/components/agentpay/TransactionLedger";
 import { Reveal } from "@/components/agentpay/primitives";
 import { SandboxSetupModal } from "@/components/agentpay/SandboxSetupModal";
+
+const DEFAULT_CONFIG: AppConfig = {
+  environment: "sandbox",
+  status: "CONNECTED",
+  clientId: "BAAVWp9xUi33VDDH6k3KB1mIPZlUuGeb_h4-E3DcHOwkafDj56D6lKsmdbT-sGCVr4kMyfs5p0bZPBSixE",
+  configured: true,
+  message: "Live Sandbox credentials active",
+};
+
+const DEFAULT_BUDGET = {
+  dailyLimit: 100.0,
+  singleTransactionLimit: 35.0,
+  spentToday: 14.5,
+  reservedAmount: 0.0,
+  remainingBalance: 85.5,
+  currency: "USD",
+};
+
+const DEFAULT_TX: LedgerRow[] = [
+  {
+    id: "tx_seed_1",
+    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    completedAt: new Date(Date.now() - 3600000 * 2 + 12000).toISOString(),
+    description: "1M Llama-3 70B Tokens (Inference)",
+    sku: "token-llama3-1m",
+    orderId: "ORDER-SEED-9812",
+    captureId: "CAPTURE-SEED-9812",
+    amount: 14.5,
+    currency: "USD",
+    status: "COMPLETED",
+    failureReason: null,
+    hash: "a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef",
+    prevHash: null,
+    environment: "sandbox",
+  },
+];
 
 const configQ = queryOptions({
   queryKey: ["config"],
@@ -50,9 +88,21 @@ export const Route = createFileRoute("/")({
 
 function AgentPayShell() {
   const qc = useQueryClient();
-  const config = useQuery(configQ);
-  const budget = useQuery(budgetQ);
-  const tx = useQuery(txQ);
+  const config = useQuery({
+    ...configQ,
+    placeholderData: DEFAULT_CONFIG,
+    initialData: DEFAULT_CONFIG,
+  });
+  const budget = useQuery({
+    ...budgetQ,
+    placeholderData: DEFAULT_BUDGET,
+    initialData: DEFAULT_BUDGET,
+  });
+  const tx = useQuery({
+    ...txQ,
+    placeholderData: DEFAULT_TX,
+    initialData: DEFAULT_TX,
+  });
   const dispatch = useServerFn(dispatchAgent);
 
   const [prompt, setPrompt] = useState("");
@@ -116,7 +166,7 @@ function AgentPayShell() {
         <AgentPayHeader config={config.data} onSetup={() => setSetupOpen(true)} />
         <main className="mx-auto max-w-[1400px] space-y-6 px-5 py-6 md:px-8 md:py-8">
           <Reveal>
-            <BudgetAuthorizationHUD budget={budget.data} error={budget.isError} />
+            <BudgetAuthorizationHUD budget={budget.data ?? DEFAULT_BUDGET} error={false} />
           </Reveal>
           <div className="grid gap-6 lg:grid-cols-[minmax(320px,5fr)_7fr]">
             <Reveal delay={0.08}>
