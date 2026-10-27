@@ -23,9 +23,13 @@ services:
     env: node
     plan: free
     rootDir: frontend
-    buildCommand: npm install
-    startCommand: npx vite dev --host 0.0.0.0 --port $PORT
+    buildCommand: npm install && npm run build
+    startCommand: node .output/server/index.mjs
     envVars:
+      - key: NITRO_PRESET
+        value: node-server
+      - key: HOST
+        value: 0.0.0.0
       - key: VITE_PAYPAL_CLIENT_ID
         value: BAAVWp9xUi33VDDH6k3KB1mIPZlUuGeb_h4-E3DcHOwkafDj56D6lKsmdbT-sGCVr4kMyfs5p0bZPBSixE
       - key: PAYPAL_CLIENT_ID
