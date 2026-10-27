@@ -94,19 +94,19 @@ async function callLiveLLM(
   const cleanKey = apiKey.trim();
   const p = provider.toLowerCase();
   let url = "https://api.groq.com/openai/v1/chat/completions";
-  let model = "llama-3.3-70b-versatile";
+  let modelsToTry = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"];
 
   // Provider and key detection
   if (cleanKey.startsWith("sk-or-") || p === "openrouter") {
     url = "https://openrouter.ai/api/v1/chat/completions";
-    model = "meta-llama/llama-3.3-70b-instruct:free";
+    modelsToTry = ["meta-llama/llama-3.1-8b-instruct:free", "meta-llama/llama-3.3-70b-instruct:free"];
   } else if (cleanKey.startsWith("sk-") || p === "openai") {
     url = "https://api.openai.com/v1/chat/completions";
-    model = "gpt-4o-mini";
+    modelsToTry = ["gpt-4o-mini"];
   } else {
-    // Default Groq
+    // Default Groq: start with llama-3.1-8b-instant (guaranteed access on all free accounts)
     url = "https://api.groq.com/openai/v1/chat/completions";
-    model = "llama-3.3-70b-versatile";
+    modelsToTry = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"];
   }
 
   const headers: Record<string, string> = {
@@ -118,51 +118,64 @@ async function callLiveLLM(
 Identify what the user wants to buy or subscribe to, and estimate the realistic market cost in USD.
 Output valid JSON only with keys:
 "title" (string, item name),
-"category" (string, e.g. "Cloud Compute", "AI Subscriptions", "Aviation", "Consumer Hardware"),
+"category" (string, e.g. "Cloud Compute", "AI Subscriptions", "Defense & Military", "Aviation", "Consumer Hardware"),
 "price" (number, realistic USD price),
 "reasoning" (string, 1 short sentence explanation)`;
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
+  let lastError = "";
+
+  for (const model of modelsToTry) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.2,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        console.error(`callLiveLLM failed (${url}, model=${model})`, res.status, errBody);
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const j = JSON.parse(errBody);
+          if (j.error?.message) errMsg = j.error.message;
+        } catch {}
+        lastError = `${provider.toUpperCase()} error: ${errMsg}`;
+        // If model access error, try the next model in the list
+        if (res.status === 404 || errMsg.includes("does not exist") || errMsg.includes("access")) {
+          continue;
+        }
+        return { success: false, error: lastError };
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) continue;
+      const parsed = JSON.parse(content);
+      return {
+        success: true,
+        title: parsed.title || "Procured Item",
+        category: parsed.category || "Procured Goods",
+        price: Number(parsed.price) || 25.00,
+        reasoning: parsed.reasoning || "Evaluated by live LLM model.",
         model,
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" }
-      })
-    });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-      console.error(`callLiveLLM failed (${url}, model=${model})`, res.status, errBody);
-      let errMsg = `HTTP ${res.status}`;
-      try {
-        const j = JSON.parse(errBody);
-        if (j.error?.message) errMsg = j.error.message;
-      } catch {}
-      return { success: false, error: `${provider.toUpperCase()} error: ${errMsg}` };
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      console.error(`callLiveLLM exception with model ${model}:`, e);
+      lastError = `${provider.toUpperCase()} unreachable: ${msg}`;
     }
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) return { success: false, error: "Empty LLM response received" };
-    const parsed = JSON.parse(content);
-    return {
-      success: true,
-      title: parsed.title || "Procured Item",
-      category: parsed.category || "Procured Goods",
-      price: Number(parsed.price) || 25.00,
-      reasoning: parsed.reasoning || "Evaluated by live LLM model.",
-      model,
-    };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Network error";
-    console.error("callLiveLLM exception:", e);
-    return { success: false, error: `${provider.toUpperCase()} unreachable: ${msg}` };
   }
+
+  return { success: false, error: lastError || "All models failed" };
 }
 
 /**
@@ -171,9 +184,43 @@ Output valid JSON only with keys:
 export function estimateExternalItem(prompt: string): CatalogItem | null {
   const lower = prompt.toLowerCase();
   
-  // Extract explicit dollar amounts if user provided (e.g. "$500", "500 dollars", "$1200")
-  const priceMatch = lower.match(/\$\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:dollars|usd)/);
-  const explicitPrice = priceMatch ? parseFloat(priceMatch[1] || priceMatch[2]) : null;
+  // Extract explicit dollar amounts with multipliers (e.g. "$70m", "$70 million", "70 million dollars", "$500", "500 dollars")
+  let explicitPrice: number | null = null;
+  const dollarFirst = lower.match(/\$\s*(\d+(?:\.\d+)?)\s*(trillion|billion|million|thousand|k|m|b)?/);
+  if (dollarFirst) {
+    let val = parseFloat(dollarFirst[1]);
+    const mult = (dollarFirst[2] || "").toLowerCase();
+    if (mult === "trillion") val *= 1_000_000_000_000;
+    else if (mult === "billion" || mult === "b") val *= 1_000_000_000;
+    else if (mult === "million" || mult === "m") val *= 1_000_000;
+    else if (mult === "thousand" || mult === "k") val *= 1_000;
+    explicitPrice = val;
+  } else {
+    const dollarAfter = lower.match(/(\d+(?:\.\d+)?)\s*(trillion|billion|million|thousand|k|m|b)?\s*(?:dollars?|usd)/);
+    if (dollarAfter) {
+      let val = parseFloat(dollarAfter[1]);
+      const mult = (dollarAfter[2] || "").toLowerCase();
+      if (mult === "trillion") val *= 1_000_000_000_000;
+      else if (mult === "billion" || mult === "b") val *= 1_000_000_000;
+      else if (mult === "million" || mult === "m") val *= 1_000_000;
+      else if (mult === "thousand" || mult === "k") val *= 1_000;
+      explicitPrice = val;
+    }
+  }
+
+  // Defense, Military & Heavy Armor
+  if (lower.includes("tank") || lower.includes("military") || lower.includes("artillery") || lower.includes("missile") || lower.includes("weapon")) {
+    return {
+      sku: "military-heavy-armor-tank",
+      title: explicitPrice ? `$${(explicitPrice / 1_000_000).toFixed(0)}M Main Battle Tank / Military Armor` : "M1A2 Abrams / Heavy Main Battle Tank",
+      category: "Defense & Military Armor",
+      price: explicitPrice ?? 12500000.00,
+      currency: "USD",
+      keywords: ["tank", "military", "armor"],
+      prompt,
+      isCustomEstimate: true,
+    };
+  }
 
   if (lower.includes("claude") || lower.includes("anthropic") || lower.includes("chatgpt") || lower.includes("openai") || lower.includes("cursor") || lower.includes("copilot")) {
     const isMaxOrTeam = lower.includes("max") || lower.includes("team") || lower.includes("enterprise");
@@ -350,13 +397,13 @@ export function estimateExternalItem(prompt: string): CatalogItem | null {
 
   // Universal fallback for any user procurement instruction (buy, order, purchase, subscribe, get)
   if (lower.startsWith("buy ") || lower.startsWith("purchase ") || lower.startsWith("order ") || lower.startsWith("subscribe ") || lower.startsWith("get ")) {
-    const cleaned = prompt.replace(/^(buy|purchase|order|subscribe to|subscribe|get)\s+/i, "").trim();
+    const cleaned = prompt.replace(/^(buy|purchase|order|subscribe to|subscribe|get)(\s+(me|us))?(\s+(a|an|the))?\s+/i, "").trim();
     const isSub = lower.includes("sub") || lower.includes("plan") || lower.includes("monthly") || lower.includes("tier");
     return {
       sku: "custom-order",
       title: cleaned.charAt(0).toUpperCase() + cleaned.slice(1),
       category: isSub ? "Digital Subscriptions" : "Procured Items",
-      price: isSub ? 100.00 : 85.00,
+      price: explicitPrice ?? (isSub ? 100.00 : 85.00),
       currency: "USD",
       keywords: ["custom"],
       prompt,

@@ -105,7 +105,7 @@ export function AgentDispatchConsole({
                     onChange={(e) => setProvider(e.target.value)}
                     className="rounded border border-line bg-surface px-2 py-1 text-xs text-foreground outline-none"
                   >
-                    <option value="groq">Groq (Free Llama-3.3 70B · Ultra Fast)</option>
+                    <option value="groq">Groq (Llama-3.1 8B / 70B · Ultra Fast)</option>
                     <option value="openai">OpenAI (GPT-4o-mini)</option>
                     <option value="openrouter">OpenRouter (Free/Custom models)</option>
                   </select>
