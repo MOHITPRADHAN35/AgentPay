@@ -34,3 +34,11 @@ services:
         value: EI1lEqAyD-aGvWd2LiELoVRtJQufIKc0Pf-YjUBSToUMSAK9EUcdhyw7QlSCzKP36QW0Olw7KkBur7VG
       - key: PAYPAL_ENV
         value: sandbox
+      - key: SUPABASE_URL
+        value: https://shfdrdqvogwjfpgivufl.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_0PZs0X-q_Dt86rnyVYw0NQ_WJi98LNF
+      - key: VITE_SUPABASE_URL
+        value: https://shfdrdqvogwjfpgivufl.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_0PZs0X-q_Dt86rnyVYw0NQ_WJi98LNF
