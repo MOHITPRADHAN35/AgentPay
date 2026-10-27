@@ -81,33 +81,44 @@ export async function budgetState() {
   }
 }
 
+type LiveLLMResponse =
+  | { success: true; title: string; category: string; price: number; reasoning: string; model: string }
+  | { success: false; error: string };
+
 /** Call external LLM (Groq, OpenAI, OpenRouter) if key is provided */
 async function callLiveLLM(
   prompt: string,
   apiKey: string,
   provider = "groq"
-): Promise<{ title: string; category: string; price: number; reasoning: string } | null> {
+): Promise<LiveLLMResponse> {
+  const cleanKey = apiKey.trim();
   const p = provider.toLowerCase();
   let url = "https://api.groq.com/openai/v1/chat/completions";
   let model = "llama-3.3-70b-versatile";
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-  };
 
-  if (p === "openai" || apiKey.startsWith("sk-")) {
-    url = "https://api.openai.com/v1/chat/completions";
-    model = "gpt-4o-mini";
-  } else if (p === "openrouter") {
+  // Provider and key detection
+  if (cleanKey.startsWith("sk-or-") || p === "openrouter") {
     url = "https://openrouter.ai/api/v1/chat/completions";
     model = "meta-llama/llama-3.3-70b-instruct:free";
+  } else if (cleanKey.startsWith("sk-") || p === "openai") {
+    url = "https://api.openai.com/v1/chat/completions";
+    model = "gpt-4o-mini";
+  } else {
+    // Default Groq
+    url = "https://api.groq.com/openai/v1/chat/completions";
+    model = "llama-3.3-70b-versatile";
   }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${cleanKey}`,
+  };
 
   const sys = `You are an autonomous AI procurement agent. The user requests: "${prompt}".
 Identify what the user wants to buy or subscribe to, and estimate the realistic market cost in USD.
 Output valid JSON only with keys:
 "title" (string, item name),
-"category" (string, e.g. "Cloud Compute", "AI Subscriptions", "Consumer Hardware", "Developer Tooling"),
+"category" (string, e.g. "Cloud Compute", "AI Subscriptions", "Aviation", "Consumer Hardware"),
 "price" (number, realistic USD price),
 "reasoning" (string, 1 short sentence explanation)`;
 
@@ -125,19 +136,32 @@ Output valid JSON only with keys:
         response_format: { type: "json_object" }
       })
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`callLiveLLM failed (${url}, model=${model})`, res.status, errBody);
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const j = JSON.parse(errBody);
+        if (j.error?.message) errMsg = j.error.message;
+      } catch {}
+      return { success: false, error: `${provider.toUpperCase()} error: ${errMsg}` };
+    }
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content;
-    if (!content) return null;
+    if (!content) return { success: false, error: "Empty LLM response received" };
     const parsed = JSON.parse(content);
     return {
+      success: true,
       title: parsed.title || "Procured Item",
       category: parsed.category || "Procured Goods",
       price: Number(parsed.price) || 25.00,
-      reasoning: parsed.reasoning || "Evaluated by live LLM model."
+      reasoning: parsed.reasoning || "Evaluated by live LLM model.",
+      model,
     };
-  } catch {
-    return null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Network error";
+    console.error("callLiveLLM exception:", e);
+    return { success: false, error: `${provider.toUpperCase()} unreachable: ${msg}` };
   }
 }
 
@@ -215,6 +239,66 @@ export function estimateExternalItem(prompt: string): CatalogItem | null {
       isCustomEstimate: true
     };
   }
+  if (lower.includes("jet") || lower.includes("plane") || lower.includes("aircraft") || lower.includes("aviation") || lower.includes("gulfstream") || lower.includes("boeing")) {
+    return {
+      sku: "aviation-private-jet",
+      title: "Gulfstream G650 / Private Jet Aircraft",
+      category: "Aviation & Luxury Transport",
+      price: explicitPrice ?? 65000000.00,
+      currency: "USD",
+      keywords: ["jet", "plane", "aviation"],
+      prompt,
+      isCustomEstimate: true,
+    };
+  }
+  if (lower.includes("yacht") || lower.includes("superyacht") || lower.includes("boat")) {
+    return {
+      sku: "luxury-yacht",
+      title: "Luxury Mega Yacht (120ft)",
+      category: "Marine & Luxury Transport",
+      price: explicitPrice ?? 12000000.00,
+      currency: "USD",
+      keywords: ["yacht", "boat"],
+      prompt,
+      isCustomEstimate: true,
+    };
+  }
+  if (lower.includes("helicopter") || lower.includes("chopper")) {
+    return {
+      sku: "helicopter-aviation",
+      title: "Turbine Passenger Helicopter",
+      category: "Aviation",
+      price: explicitPrice ?? 2800000.00,
+      currency: "USD",
+      keywords: ["helicopter"],
+      prompt,
+      isCustomEstimate: true,
+    };
+  }
+  if (lower.includes("mansion") || lower.includes("penthouse") || lower.includes("villa") || lower.includes("estate")) {
+    return {
+      sku: "luxury-real-estate",
+      title: "Luxury Residential Estate / Villa",
+      category: "Real Estate",
+      price: explicitPrice ?? 4500000.00,
+      currency: "USD",
+      keywords: ["mansion", "villa"],
+      prompt,
+      isCustomEstimate: true,
+    };
+  }
+  if (lower.includes("ferrari") || lower.includes("lamborghini") || lower.includes("bugatti") || lower.includes("supercar")) {
+    return {
+      sku: "exotic-supercar",
+      title: "Exotic High-Performance Supercar",
+      category: "Automotive",
+      price: explicitPrice ?? 350000.00,
+      currency: "USD",
+      keywords: ["ferrari", "supercar"],
+      prompt,
+      isCustomEstimate: true,
+    };
+  }
   if (lower.includes("watch") || lower.includes("rolex")) {
     return {
       sku: "luxury-goods",
@@ -288,12 +372,14 @@ export async function resolveItem(
   apiKey?: string,
   provider = "groq"
 ): Promise<{ item: CatalogItem | null; reasoning: string; source: "ai" | "keyword" }> {
-  const activeKey = apiKey || process.env["GROQ_API_KEY"] || process.env["OPENAI_API_KEY"];
+  const activeKey = (apiKey || process.env["GROQ_API_KEY"] || process.env["OPENAI_API_KEY"])?.trim();
+
+  let llmErrorNote = "";
 
   // 1. If reviewer provided an API key (or set in env), invoke Live LLM
   if (activeKey) {
     const live = await callLiveLLM(prompt, activeKey, provider);
-    if (live) {
+    if (live.success) {
       return {
         item: {
           sku: `market-${Date.now().toString(36)}`,
@@ -303,11 +389,13 @@ export async function resolveItem(
           currency: "USD",
           keywords: [],
           prompt,
-          isCustomEstimate: true
+          isCustomEstimate: true,
         },
-        reasoning: `Live AI (${provider.toUpperCase()}) analyzed instruction: "${live.reasoning}" (Estimated cost: $${live.price.toFixed(2)} USD)`,
+        reasoning: `Live AI (${provider.toUpperCase()} / ${live.model}): "${live.reasoning}" (Market estimate: $${live.price.toLocaleString("en-US", { minimumFractionDigits: 2 })} USD)`,
         source: "ai",
       };
+    } else {
+      llmErrorNote = ` [Note: Live ${provider.toUpperCase()} returned: ${live.error}. Fallback estimator activated.]`;
     }
   }
 
@@ -316,7 +404,7 @@ export async function resolveItem(
   if (catalogItem) {
     return {
       item: catalogItem,
-      reasoning: `Matched the instruction to "${catalogItem.title}" in the trusted catalog.`,
+      reasoning: `Matched the instruction to "${catalogItem.title}" in the trusted catalog.${llmErrorNote}`,
       source: "keyword",
     };
   }
@@ -324,16 +412,17 @@ export async function resolveItem(
   // 3. Fallback to intelligent built-in estimator
   const estimated = estimateExternalItem(prompt);
   if (estimated) {
+    const formattedPrice = estimated.price.toLocaleString("en-US", { minimumFractionDigits: 2 });
     return {
       item: estimated,
-      reasoning: `Intelligent offline estimator parsed request: "${estimated.title}" (Estimated cost: $${estimated.price.toFixed(2)} USD). Evaluating against safety policies...`,
+      reasoning: `Intelligent offline estimator parsed request: "${estimated.title}" (Estimated cost: $${formattedPrice} USD). Evaluating against safety policies...${llmErrorNote}`,
       source: "ai",
     };
   }
 
   return {
     item: null,
-    reasoning: "No catalog or market item matches this instruction.",
+    reasoning: `No catalog or market item matches this instruction.${llmErrorNote}`,
     source: "keyword",
   };
 }

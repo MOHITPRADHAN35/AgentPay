@@ -126,7 +126,13 @@ export function AgentDispatchConsole({
                   <input
                     type="password"
                     value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setApiKey(val);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("agentpay_llm_key", val.trim());
+                      }
+                    }}
                     placeholder="Paste optional key (e.g. gsk_... or sk-...)"
                     className="w-full rounded border border-line bg-surface px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-warning"
                   />
