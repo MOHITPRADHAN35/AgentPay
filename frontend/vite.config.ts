@@ -7,18 +7,28 @@ const allowedHosts = [
   "127.0.0.1",
 ];
 
+const port = Number(process.env.PORT) || 8080;
+
 export default defineConfig({
-  preview: {
+  server: {
+    host: "0.0.0.0",
+    port,
     allowedHosts,
   },
-  server: {
+  preview: {
+    host: "0.0.0.0",
+    port,
     allowedHosts,
   },
   vite: {
-    preview: {
+    server: {
+      host: "0.0.0.0",
+      port,
       allowedHosts,
     },
-    server: {
+    preview: {
+      host: "0.0.0.0",
+      port,
       allowedHosts,
     },
   },
