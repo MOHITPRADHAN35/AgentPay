@@ -109,18 +109,22 @@ async function callLiveLLM(
     modelsToTry = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"];
   }
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${cleanKey}`,
-  };
+  const sys = `You are an expert NLP procurement and financial intelligence agent.
+Your mission is to understand ANY arbitrary natural language instruction from the user, resolve the procurement intent, and evaluate the realistic fair-market value in USD.
 
-  const sys = `You are an autonomous AI procurement agent. The user requests: "${prompt}".
-Identify what the user wants to buy or subscribe to, and estimate the realistic market cost in USD.
-Output valid JSON only with keys:
-"title" (string, item name),
-"category" (string, e.g. "Cloud Compute", "AI Subscriptions", "Defense & Military", "Aviation", "Consumer Hardware"),
-"price" (number, realistic USD price),
-"reasoning" (string, 1 short sentence explanation)`;
+NLP Understanding Guidelines:
+1. Intent & Entity Extraction: Parse the core product, service, subscription, license, hardware, or asset the user intends to procure, including implied quantities, durations, editions, models, and specifications.
+2. Real-World Market Valuation:
+   - For military equipment, defense hardware (e.g. "tank", "fighter jet", "missile system"): estimate realistic defense contract procurement costs (e.g. Main battle tank ~$10M - $12M USD; fighter jet ~$80M USD).
+   - For aviation, marine & luxury (e.g. "private jet", "yacht", "helicopter", "supercar"): estimate actual manufacturer market prices (e.g. Gulfstream jet ~$45M - $65M USD; mega yacht ~$15M - $30M USD; supercar ~$300k - $600k USD).
+   - For cloud infrastructure & developer tooling (e.g. "GPU compute", "H100 hour", "tokens", "domains", "SaaS"): estimate realistic market hourly/monthly pricing (e.g. 1 hour H100 ~$3 - $10 USD; domain ~$12 USD; monthly SaaS ~$20 - $100 USD).
+   - For everyday goods & services (e.g. "lunch", "coffee", "office supplies"): estimate typical consumer prices (e.g. coffee ~$5 USD).
+   - If the user explicitly mentions a quantity or dollar amount (e.g. "$450", "70 million dollars", "5 units"), respect their explicit valuation.
+3. Output format: Return valid JSON ONLY with these exact keys:
+   "title": string (clean, professional product or service title),
+   "category": string (e.g. "Defense & Military Armor", "Aviation & Luxury Transport", "Cloud Infrastructure", "AI Subscriptions", "Developer Tooling", "Food & Beverage"),
+   "price": number (realistic fair-market USD price as a numeric value),
+   "reasoning": string (clear 1-2 sentence NLP explanation of how you parsed the intent, model/spec, and fair-market valuation)`;
 
   let lastError = "";
 
@@ -270,6 +274,18 @@ export function estimateExternalItem(prompt: string): CatalogItem | null {
       price: explicitPrice ?? 1250.00,
       currency: "USD",
       keywords: ["laptop", "pc"],
+      prompt,
+      isCustomEstimate: true
+    };
+  }
+  if (lower.includes("coffee") || lower.includes("latte") || lower.includes("espresso") || lower.includes("starbucks") || lower.includes("tea")) {
+    return {
+      sku: "beverage-coffee",
+      title: "Artisan Coffee / Beverage Order",
+      category: "Food & Beverage",
+      price: explicitPrice ?? 5.50,
+      currency: "USD",
+      keywords: ["coffee", "latte", "beverage"],
       prompt,
       isCustomEstimate: true
     };
