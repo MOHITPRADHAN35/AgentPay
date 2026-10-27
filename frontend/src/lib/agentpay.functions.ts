@@ -192,16 +192,20 @@ export const dispatchAgent = createServerFn({ method: "POST" })
       reserved: budget.reservedAmount,
       currency: POLICY.currency,
     });
-    await supabaseAdmin.from("policy_decisions").insert({
-      task_id: taskId,
-      prompt: data.prompt,
-      catalog_sku: item?.sku ?? null,
-      amount: item?.price ?? null,
-      allowed: decision.allowed,
-      rule: decision.rule,
-      reason: decision.reason,
-      environment,
-    });
+    try {
+      await supabaseAdmin.from("policy_decisions").insert({
+        task_id: taskId,
+        prompt: data.prompt,
+        catalog_sku: item?.sku ?? null,
+        amount: item?.price ?? null,
+        allowed: decision.allowed,
+        rule: decision.rule,
+        reason: decision.reason,
+        environment,
+      });
+    } catch (e) {
+      console.warn("Policy decision db log skipped:", e);
+    }
     return {
       taskId,
       environment,
