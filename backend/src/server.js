@@ -244,6 +244,64 @@ app.post('/api/agent/dispatch', (req, res) => {
   });
 });
 
+// 7. PayPal Webhook Verification Endpoint
+app.post('/api/webhooks/paypal', async (req, res) => {
+  try {
+    const webhookEvent = req.body;
+    const eventType = webhookEvent.event_type;
+    console.log(`[PayPal Webhook Received] Type: ${eventType}, ID: ${webhookEvent.id}`);
+
+    // Verify webhook signature if PayPal headers present
+    const transmissionId = req.headers['paypal-transmission-id'];
+    const transmissionTime = req.headers['paypal-transmission-time'];
+    const certUrl = req.headers['paypal-cert-url'];
+    const authAlgo = req.headers['paypal-auth-algo'];
+    const transmissionSig = req.headers['paypal-transmission-sig'];
+    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+
+    let isVerified = false;
+    if (webhookId && transmissionId && certUrl && transmissionSig) {
+      try {
+        const verifyRes = await fetch('https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Uses client credentials token if needed
+          },
+          body: JSON.stringify({
+            transmission_id: transmissionId,
+            transmission_time: transmissionTime,
+            cert_url: certUrl,
+            auth_algo: authAlgo,
+            transmission_sig: transmissionSig,
+            webhook_id: webhookId,
+            webhook_event: webhookEvent
+          })
+        });
+        const verifyData = await verifyRes.json();
+        isVerified = verifyData.verification_status === 'SUCCESS';
+      } catch (verr) {
+        console.warn('Webhook live signature verification check error:', verr.message);
+      }
+    } else {
+      // Local development or simulated webhook mode
+      isVerified = true;
+    }
+
+    // Reconcile transaction state based on event
+    if (eventType === 'PAYMENT.CAPTURE.COMPLETED') {
+      const capture = webhookEvent.resource;
+      const customId = capture.custom_id;
+      console.log(`[Reconciled] Payment captured for task ${customId}, amount: ${capture.amount?.value} ${capture.amount?.currency_code}`);
+    }
+
+    res.status(200).json({ received: true, verified: isVerified });
+  } catch (err) {
+    console.error('Webhook processing error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 AgentPay Backend Server running on http://localhost:${PORT}`);
   console.log(`   PayPal Mode: ${process.env.PAYPAL_ENVIRONMENT || 'sandbox'}`);

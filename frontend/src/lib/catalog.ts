@@ -64,8 +64,20 @@ export const POLICY = {
   currency: "USD" as const,
 };
 
+export function updatePolicyLimits(limits: { dailyLimit?: number; singleTransactionLimit?: number }) {
+  if (limits.dailyLimit !== undefined) POLICY.dailyLimit = limits.dailyLimit;
+  if (limits.singleTransactionLimit !== undefined) POLICY.singleTransactionLimit = limits.singleTransactionLimit;
+}
+
+const DYNAMIC_CATALOG = new Map<string, CatalogItem>();
+
+export function registerDynamicItem(item: CatalogItem) {
+  DYNAMIC_CATALOG.set(item.sku, item);
+}
+
 export function findSku(sku: string | null | undefined) {
-  return CATALOG.find((c) => c.sku === sku) ?? null;
+  if (!sku) return null;
+  return CATALOG.find((c) => c.sku === sku) ?? DYNAMIC_CATALOG.get(sku) ?? null;
 }
 
 export function keywordMatch(prompt: string): CatalogItem | null {

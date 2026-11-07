@@ -10,6 +10,10 @@ frontend/.env
 *.env
 !backend/.env.example
 !.env.example
+apikeys.md
+*apikey*
+tailored_resumes/
+
 
 # Build outputs & caches
 dist/
