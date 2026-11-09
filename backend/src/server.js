@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createPayPalOrder, capturePayPalOrder, getPayPalOrderDetails } from './paypalClient.js';
+import { runZomatoBrowserAgent } from './zomatoBrowserAgent.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -298,6 +299,30 @@ app.post('/api/webhooks/paypal', async (req, res) => {
     res.status(200).json({ received: true, verified: isVerified });
   } catch (err) {
     console.error('Webhook processing error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Real-World Zomato Playwright Browser Agent Endpoint
+app.post('/api/browser-agent/zomato', async (req, res) => {
+  const { dish = 'noodles', maxBudget = 300, phone = '+91 9178305324', address } = req.body || {};
+  try {
+    runZomatoBrowserAgent({
+      dish,
+      maxBudget: Number(maxBudget),
+      phone,
+      address,
+      onProgress: (m) => console.log(`[BrowserAgent API] ${m}`)
+    }).catch((err) => console.error('[BrowserAgent Error]', err));
+
+    res.json({
+      success: true,
+      status: 'LAUNCHED',
+      message: 'Visible Google Chrome instance launched on your screen for Zomato checkout.',
+      phone,
+      dish
+    });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

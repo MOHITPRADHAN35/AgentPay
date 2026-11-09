@@ -134,6 +134,29 @@ export function AuthorizationDialog({
   const over = requiresOverride(total, budget, budget.remaining);
   const taskId = latestTask?.id;
 
+  const handleLaunchBrowserAgent = async () => {
+    try {
+      toast.info("Launching Chrome Browser Agent...", {
+        description: "Opening real Google Chrome to automate Zomato food procurement.",
+      });
+      await fetch("http://localhost:5000/api/browser-agent/zomato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dish: product?.title || "noodles",
+          maxBudget: 300,
+          phone: "+91 9178305324",
+          address: selectedAddress.street + ", " + selectedAddress.city,
+        }),
+      });
+      toast.success("Chrome Browser Agent Active", {
+        description: "Check your screen/taskbar for the active Google Chrome window.",
+      });
+    } catch (err: any) {
+      toast.error("Could not reach backend browser agent: " + err.message);
+    }
+  };
+
   // Real-world UPI Verification & Placement: saves to Supabase and calls Zomato MCP place_order
   const handleVerifyUpi = async (withBio: boolean = true) => {
     if (!upiCollect) return;
@@ -595,6 +618,25 @@ export function AuthorizationDialog({
                             Verify without Windows Hello (Demo Bypass)
                           </Button>
                         </div>
+
+                        {/* Real-World Chrome Browser Agent Launcher */}
+                        {isFoodOrder(product) && (
+                          <div className="pt-2 border-t border-border/40">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleLaunchBrowserAgent}
+                              className="w-full text-xs font-semibold border-rose-500/40 text-rose-300 hover:bg-rose-500/10 cursor-pointer flex items-center justify-center gap-1.5 h-8"
+                            >
+                              <ExternalLink className="size-3.5 text-rose-400" />
+                              🌐 Launch Real Chrome Browser Agent (Zomato)
+                            </Button>
+                            <p className="mt-1 text-[10px] text-muted-foreground text-center">
+                              Opens your visible Google Chrome to search, cart &amp; reach real Zomato checkout.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
