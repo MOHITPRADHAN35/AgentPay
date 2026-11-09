@@ -7,7 +7,7 @@ export const INITIAL_ADDRESSES: UserAddress[] = [
     id: "addr_home_primary",
     alias: "Home",
     name: "Mohit Kumar",
-    phone: "+91 98765 43210",
+    phone: "+91 9178305324",
     street: "Flat 402, Orchid Heights, Outer Ring Road, Bellandur",
     landmark: "Near EcoSpace Tech Park",
     city: "Bengaluru",
@@ -20,7 +20,7 @@ export const INITIAL_ADDRESSES: UserAddress[] = [
     id: "addr_office_techhub",
     alias: "Office",
     name: "Mohit Kumar (AgentPay Labs)",
-    phone: "+91 98765 43211",
+    phone: "+91 9178305324",
     street: "WeWork Cyber City, Tower B, 8th Floor, DLF Phase 2",
     landmark: "Opposite Cyber Hub Metro",
     city: "Gurugram",
@@ -33,7 +33,7 @@ export const INITIAL_ADDRESSES: UserAddress[] = [
     id: "addr_hostel_campus",
     alias: "Hostel",
     name: "Mohit Kumar",
-    phone: "+91 98765 43210",
+    phone: "+91 9178305324",
     street: "Room 304, Block B Boys Hostel, Tech Campus, Electronic City",
     landmark: "Near Main Mess & Gate 2",
     city: "Bengaluru",
@@ -53,7 +53,14 @@ export function getUserAddresses(): UserAddress[] {
       return INITIAL_ADDRESSES;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_ADDRESSES;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Migrate any old placeholder numbers to verified user phone
+      const migrated = parsed.map((a: UserAddress) =>
+        a.phone?.includes("98765") ? { ...a, phone: "+91 9178305324" } : a
+      );
+      return migrated;
+    }
+    return INITIAL_ADDRESSES;
   } catch {
     return INITIAL_ADDRESSES;
   }

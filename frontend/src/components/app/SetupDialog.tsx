@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { configQuery, type ServiceKey } from "@/lib/agentpay/api";
 import { StatusBadge } from "./primitives";
 import { getStoredUpiId, setStoredUpiId } from "@/lib/services/upiService";
+import { getStoredZomatoPhone, setStoredZomatoPhone } from "@/lib/integrations/mcp/zomatoMcp";
 
 export const SERVICES: { key: ServiceKey; name: string; icon: typeof Bot; steps: string }[] = [
   {
@@ -84,7 +85,7 @@ export function ServiceList() {
 
 export function CommerceAccountsList() {
   const [upiId, setUpiId] = useState(() => getStoredUpiId());
-  const [zomatoPhone, setZomatoPhone] = useState("+91 98765 43210");
+  const [zomatoPhone, setZomatoPhone] = useState(() => getStoredZomatoPhone());
   const [amazonEmail, setAmazonEmail] = useState("user.shopping@amazon.in");
 
   const handleSaveUpi = () => {
@@ -95,6 +96,13 @@ export function CommerceAccountsList() {
     setStoredUpiId(upiId);
     toast.success("UPI ID Saved for Mobile Push Requests", {
       description: `Payment alerts will be dispatched directly to ${upiId} on Google Pay / PhonePe / Paytm.`,
+    });
+  };
+
+  const handleSaveZomatoPhone = () => {
+    setStoredZomatoPhone(zomatoPhone);
+    toast.success("Zomato MCP Account Synced", {
+      description: `Registered mobile ${zomatoPhone} verified with active MCP session.`
     });
   };
 
@@ -165,10 +173,10 @@ export function CommerceAccountsList() {
           </div>
           <div className="flex items-end">
             <Button
-              variant="glass"
+              variant="brand"
               size="sm"
-              className="w-full text-xs h-8"
-              onClick={() => toast.success("Zomato OTP session active", { description: "Session synced via MCP server." })}
+              className="w-full text-xs h-8 cursor-pointer"
+              onClick={handleSaveZomatoPhone}
             >
               Verify Session
             </Button>

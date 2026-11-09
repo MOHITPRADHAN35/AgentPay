@@ -47,6 +47,20 @@ export const ZOMATO_MCP_CONFIG = {
 
 const INR_TO_USD_RATE = 86; // 1 USD = 86 INR
 
+const STORAGE_ZOMATO_PHONE_KEY = "agentpay_zomato_phone";
+export const DEFAULT_ZOMATO_PHONE = "+91 9178305324";
+
+export function getStoredZomatoPhone(): string {
+  if (typeof window === "undefined") return DEFAULT_ZOMATO_PHONE;
+  return localStorage.getItem(STORAGE_ZOMATO_PHONE_KEY) || DEFAULT_ZOMATO_PHONE;
+}
+
+export function setStoredZomatoPhone(phone: string): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_ZOMATO_PHONE_KEY, phone.trim());
+  }
+}
+
 // Curated high-rated Zomato verified restaurant catalog
 export const ZOMATO_RESTAURANTS: ZomatoRestaurant[] = [
   {
@@ -509,7 +523,7 @@ export async function callZomatoMcpTool(toolName: string, args: Record<string, a
       name: "Mohit Kumar",
       street: "Room 304, Block B Boys Hostel, Tech Campus, Electronic City",
       city: "Bengaluru",
-      phone: "+91 98765 43210"
+      phone: getStoredZomatoPhone()
     };
     const orderId = `ZOMATO-ORD-${Date.now().toString().slice(-6)}`;
     return {
