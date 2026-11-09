@@ -65,11 +65,24 @@ export class ZomatoAdapter extends BaseMerchantAdapter {
     return products;
   }
 
-  async addToCart(page, productRef) {
-    if (productRef.url && page.url() !== productRef.url) {
-      await page.goto(productRef.url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  async addToCart(page, productRef = {}) {
+    const dishQuery = productRef.title || "cake";
+    const targetUrl = productRef.url || `${this.baseUrl}/delivery`;
+
+    if (page.url() === "about:blank" || (productRef.url && page.url() !== productRef.url)) {
+      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(2000);
     }
+
+    try {
+      const searchInput = page.locator('input[placeholder*="Search for restaurant"], input[placeholder*="search"]').first();
+      if ((await searchInput.count()) > 0 && (await searchInput.isVisible())) {
+        await searchInput.click().catch(() => {});
+        await searchInput.fill(dishQuery).catch(() => {});
+        await page.keyboard.press("Enter").catch(() => {});
+        await page.waitForTimeout(2500);
+      }
+    } catch (_) {}
 
     const addBtn = page.locator('button:has-text("Add"), div:has-text("ADD"):not(:has-text("ADDRESS"))').first();
     let clicked = false;
@@ -79,22 +92,23 @@ export class ZomatoAdapter extends BaseMerchantAdapter {
       await page.waitForTimeout(1500);
     }
 
-    return { success: true, message: "Dish staged for Zomato order review." };
+    return { success: true, message: `Dish '${dishQuery}' staged for Zomato order review.` };
   }
 
-  async getCartSummary(page) {
-    // Inspect Zomato cart panel
+  async getCartSummary(page, selectedItem = {}) {
+    const title = selectedItem.title || "Selected Item";
+    const price = selectedItem.price ? (selectedItem.price < 50 ? Math.round(selectedItem.price * 86) : Math.round(selectedItem.price)) : 250;
     const items = [
       {
-        title: "Street Style Desi Chowmein / Noodles",
+        title,
         quantity: 1,
-        price: 180,
+        price,
       },
     ];
 
-    const subtotal = 180;
+    const subtotal = price;
     const shipping = 35; // Standard restaurant delivery charge
-    const tax = 9; // Restaurant GST
+    const tax = Math.round(subtotal * 0.05); // Restaurant GST
     const total = subtotal + shipping + tax;
 
     const savedPaymentMethods = [

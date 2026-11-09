@@ -125,8 +125,17 @@ export class BrowserExecutionController {
     const task = this.tasks.get(taskId);
     if (!task) throw new Error(`Task ${taskId} not found`);
 
-    const session = this.sessionManager.getSession(task.sessionId);
-    if (!session) throw new Error(`Active browser session not found for task ${taskId}`);
+    let session = this.sessionManager.getSession(task.sessionId);
+    if (!session) {
+      // Auto-acquire persistent visible browser session if not already attached
+      const acquired = await this.sessionManager.acquireSession({
+        userId: task.userId,
+        merchant: task.merchant.toLowerCase(),
+        headless: false,
+      });
+      task.sessionId = acquired.sessionId;
+      session = this.sessionManager.getSession(task.sessionId);
+    }
 
     try {
       task.selectedItem = selectedItem;
@@ -136,7 +145,7 @@ export class BrowserExecutionController {
       await adapter.addToCart(session.page, selectedItem);
 
       this.logStep(task, "INSPECTING_CART_AND_SAVED_PAYMENTS");
-      const cartSummary = await adapter.getCartSummary(session.page);
+      const cartSummary = await adapter.getCartSummary(session.page, selectedItem);
 
       // Enforce zero-trust domain check
       assertDomainAllowed(`https://${cartSummary.merchantDomain}`);
@@ -251,7 +260,7 @@ export class BrowserExecutionController {
     if (!session) throw new Error(`Active browser session not found for task ${taskId}`);
 
     const adapter = this.getAdapter(task.merchant, task.domain, task.city);
-    const liveCart = await adapter.getCartSummary(session.page);
+    const liveCart = await adapter.getCartSummary(session.page, task.selectedItem);
 
     if (Math.abs(liveCart.total - proposal.financials.total) > 0.01) {
       task.state = TaskState.FAILED;

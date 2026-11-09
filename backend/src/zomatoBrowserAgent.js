@@ -50,6 +50,14 @@ export async function runZomatoBrowserAgent(options = {}) {
     fs.mkdirSync(userDataDir, { recursive: true });
   }
 
+  // Remove stale lockfile if left from prior interrupted session
+  const lockfilePath = path.join(userDataDir, "lockfile");
+  if (fs.existsSync(lockfilePath)) {
+    try {
+      fs.unlinkSync(lockfilePath);
+    } catch (_) {}
+  }
+
   onProgress(`Launching real ${browserName} from: ${executablePath}`);
   onProgress(`Target Destination: ${address} (${city.toUpperCase()})`);
   onProgress(`Registered User Phone: ${phone}`);

@@ -82,6 +82,14 @@ export class BrowserSessionManager {
       throw new Error("No installed Google Chrome or Microsoft Edge browser executable found on system.");
     }
 
+    // Clean up stale lockfiles if present from previous interrupted runs
+    const lockfilePath = path.join(profilePath, "lockfile");
+    if (fs.existsSync(lockfilePath)) {
+      try {
+        fs.unlinkSync(lockfilePath);
+      } catch (_) {}
+    }
+
     let context;
     try {
       context = await chromium.launchPersistentContext(profilePath, {
@@ -96,20 +104,35 @@ export class BrowserSessionManager {
         ],
       });
     } catch (err) {
-      // If profile is temporarily locked, launch with unique fallback dir
-      const fallbackDir = path.join(profilePath, `fallback_${Date.now()}`);
-      fs.mkdirSync(fallbackDir, { recursive: true });
-      context = await chromium.launchPersistentContext(fallbackDir, {
-        executablePath,
-        headless,
-        viewport: { width: 1280, height: 850 },
-        args: [
-          "--start-maximized",
-          "--new-window",
-          "--disable-blink-features=AutomationControlled",
-          "--no-sandbox",
-        ],
-      });
+      try {
+        // If profile is temporarily locked, launch with unique fallback dir
+        const fallbackDir = path.join(profilePath, `fallback_${Date.now()}`);
+        fs.mkdirSync(fallbackDir, { recursive: true });
+        context = await chromium.launchPersistentContext(fallbackDir, {
+          executablePath,
+          headless,
+          viewport: { width: 1280, height: 850 },
+          args: [
+            "--start-maximized",
+            "--new-window",
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+          ],
+        });
+      } catch (fbErr) {
+        // Fallback to launch
+        const browser = await chromium.launch({
+          executablePath,
+          headless,
+          args: [
+            "--start-maximized",
+            "--new-window",
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+          ],
+        });
+        context = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+      }
     }
 
     const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
