@@ -155,3 +155,4 @@ export class ZomatoAdapter extends BaseMerchantAdapter {
     };
   }
 }
+

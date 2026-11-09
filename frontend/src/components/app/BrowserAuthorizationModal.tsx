@@ -239,7 +239,7 @@ export function BrowserAuthorizationModal({
           >
             {isAuthorizing ? (
               <>
-                <Loader2 className="size-4 animate-spin" /> Authorizing in Chrome...
+                <Loader2 className="size-4 animate-spin" /> Authorizing in Browser...
               </>
             ) : (
               <>
@@ -252,3 +252,4 @@ export function BrowserAuthorizationModal({
     </Dialog>
   );
 }
+

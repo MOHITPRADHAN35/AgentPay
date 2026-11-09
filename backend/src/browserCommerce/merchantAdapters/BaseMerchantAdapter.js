@@ -69,3 +69,4 @@ export class BaseMerchantAdapter {
     throw new Error("verifyOrderConfirmation() must be implemented by merchant adapter");
   }
 }
+

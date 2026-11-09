@@ -8,13 +8,13 @@ import { assertDomainAllowed, attachNavigationGuard } from "./securityEngine.js"
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Windows Chrome & Edge candidate paths
+// Windows Edge & Chrome candidate paths (Prefer user's primary browser: Microsoft Edge)
 const BROWSER_EXECUTABLE_PATHS = [
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
   process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Google\\Chrome\\Application\\chrome.exe") : null,
-  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
 ].filter(Boolean);
 
 export function findBrowserExecutable() {
@@ -90,6 +90,7 @@ export class BrowserSessionManager {
         viewport: { width: 1280, height: 850 },
         args: [
           "--start-maximized",
+          "--new-window",
           "--disable-blink-features=AutomationControlled",
           "--no-sandbox",
         ],
@@ -104,6 +105,7 @@ export class BrowserSessionManager {
         viewport: { width: 1280, height: 850 },
         args: [
           "--start-maximized",
+          "--new-window",
           "--disable-blink-features=AutomationControlled",
           "--no-sandbox",
         ],
@@ -111,6 +113,7 @@ export class BrowserSessionManager {
     }
 
     const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
+    await page.bringToFront().catch(() => {});
 
     // Attach security engine navigation guard to block unauthorized domain jumps
     await attachNavigationGuard(page, allowedDomains, (violation) => {
@@ -216,3 +219,4 @@ export class BrowserSessionManager {
 }
 
 export const defaultSessionManager = new BrowserSessionManager();
+

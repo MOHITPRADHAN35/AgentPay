@@ -6,13 +6,13 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Windows Chrome & Edge candidate paths
+// Windows Edge & Chrome candidate paths (Prefer user's primary browser: Microsoft Edge)
 const BROWSER_EXECUTABLE_PATHS = [
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
   process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Google\\Chrome\\Application\\chrome.exe") : null,
-  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
 ].filter(Boolean);
 
 export function findBrowserExecutable() {
@@ -41,13 +41,16 @@ export async function runZomatoBrowserAgent(options = {}) {
     throw new Error("No installed Google Chrome or Microsoft Edge found on this Windows machine.");
   }
 
+  const browserName = executablePath.toLowerCase().includes("msedge") ? "Microsoft Edge" : "Google Chrome";
+  const profileDirName = executablePath.toLowerCase().includes("msedge") ? ".agent_edge_profile" : ".agent_chrome_profile";
+
   // Persistent user data directory so Zomato login cookies & sessions are preserved
-  const userDataDir = path.resolve(__dirname, "../../.agent_chrome_profile");
+  const userDataDir = path.resolve(__dirname, "../../", profileDirName);
   if (!fs.existsSync(userDataDir)) {
     fs.mkdirSync(userDataDir, { recursive: true });
   }
 
-  onProgress(`Launching real Google Chrome from: ${executablePath}`);
+  onProgress(`Launching real ${browserName} from: ${executablePath}`);
   onProgress(`Target Destination: ${address} (${city.toUpperCase()})`);
   onProgress(`Registered User Phone: ${phone}`);
 
@@ -58,17 +61,19 @@ export async function runZomatoBrowserAgent(options = {}) {
       headless: false, // Visible window so user can watch and scan UPI QR
       args: [
         "--start-maximized",
+        "--new-window",
         "--disable-blink-features=AutomationControlled", // Helps prevent anti-bot false triggers
         "--no-sandbox",
       ],
     });
   } catch (launchErr) {
-    onProgress(`Persistent profile busy, launching fresh browser window: ${launchErr.message}`);
+    onProgress(`Persistent profile busy, launching fresh ${browserName} window: ${launchErr.message}`);
     const browser = await chromium.launch({
       executablePath,
       headless: false,
       args: [
         "--start-maximized",
+        "--new-window",
         "--disable-blink-features=AutomationControlled",
         "--no-sandbox",
       ],
@@ -77,6 +82,7 @@ export async function runZomatoBrowserAgent(options = {}) {
   }
 
   const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
+  await page.bringToFront().catch(() => {});
 
   try {
     onProgress(`Navigating to Zomato ${city.toUpperCase()} delivery portal...`);
@@ -146,13 +152,14 @@ export async function runZomatoBrowserAgent(options = {}) {
     onProgress(`User registered contact: ${phone}`);
 
     onProgress(`⚡ REAL-WORLD BROWSER AUTOMATION COMPLETED!`);
-    onProgress(`👉 The visible Chrome window is active on your screen.`);
+    onProgress(`👉 The visible ${browserName} window is active on your screen.`);
     onProgress(`👉 You can review the order, proceed to checkout, and scan the real UPI QR to finalize!`);
 
     return {
       success: true,
       status: "BROWSER_ACTIVE",
-      message: "Real Google Chrome browser launched and navigated to Zomato.",
+      browser: browserName,
+      message: `Real ${browserName} browser launched and navigated to Zomato.`,
       dish,
       maxBudget,
       phone,

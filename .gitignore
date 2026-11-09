@@ -25,6 +25,11 @@ build/
 frontend/.output/
 frontend/node_modules/.vite/
 
+# Browser Agent Profiles & Sessions
+.agent_browser_profiles/
+.agent_chrome_profile/
+.agent_edge_profile/
+
 # Archives & Temporary files
 *.zip
 *.log

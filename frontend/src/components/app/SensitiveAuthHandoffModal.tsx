@@ -28,8 +28,8 @@ export function SensitiveAuthHandoffModal({
   };
 
   const instructionMap: Record<string, string> = {
-    OTP: "A verification code was dispatched to your registered phone or bank app. Enter it directly inside the active Google Chrome window.",
-    "3DS": "Approve the pending transaction notification inside your banking app or enter your 3DS password in Chrome.",
+    OTP: "A verification code was dispatched to your registered phone or bank app. Enter it directly inside the active browser window.",
+    "3DS": "Approve the pending transaction notification inside your banking app or enter your 3DS password in the browser window.",
     UPI_PIN: "Review the payment request on your UPI app or enter your MPIN directly in the official payment gateway frame.",
   };
 
@@ -63,7 +63,7 @@ export function SensitiveAuthHandoffModal({
         {/* Active Desktop Window Notice */}
         <div className="flex items-center justify-center gap-2 p-2.5 rounded-lg bg-surface-deep text-xs font-mono text-muted-foreground border border-glass-border">
           <ExternalLink className="size-3.5 text-primary animate-pulse" />
-          <span>Active Google Chrome window is open on your screen</span>
+          <span>Active browser window is open on your screen</span>
         </div>
 
         {/* Action Buttons */}
@@ -82,7 +82,7 @@ export function SensitiveAuthHandoffModal({
               </>
             ) : (
               <>
-                <CheckCircle2 className="size-4" /> I Have Completed Authentication in Chrome
+                <CheckCircle2 className="size-4" /> I Have Completed Authentication in Browser
               </>
             )}
           </Button>
@@ -102,3 +102,4 @@ export function SensitiveAuthHandoffModal({
     </Dialog>
   );
 }
+

@@ -116,8 +116,8 @@ function Comparisons() {
     const city = defAddr.city?.toLowerCase() || "bhubaneswar";
     const phone = defAddr.phone || "+91 9178305324";
 
-    toast.info("🚀 Launching Chrome Browser Agent...", {
-      description: `Opening real Google Chrome to automate Zomato order for ${cleanDish || p.title}...`,
+    toast.info("🚀 Launching Edge Browser Agent...", {
+      description: `Opening real Microsoft Edge to automate Zomato order for ${cleanDish || p.title}...`,
     });
 
     try {
@@ -134,7 +134,7 @@ function Comparisons() {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success("Google Chrome Active on Screen!", {
+        toast.success("Microsoft Edge Active on Screen!", {
           description: `Zomato opened for ${cleanDish || p.title}. Check your desktop to finalize!`,
         });
       }

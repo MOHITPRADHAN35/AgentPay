@@ -20,6 +20,8 @@ export const DEFAULT_ALLOWED_DOMAINS = [
   "ssl-images-amazon.com",
   "zmtcdn.com",
   "swiggy.item",
+  "googleapis.com",
+  "gstatic.com",
   // Banking & Payment Gateway Handoffs (for 3DS / OTP verification)
   "razorpay.com",
   "billdesk.com",
@@ -220,3 +222,4 @@ export function redactSensitiveData(input) {
 
   return input;
 }
+

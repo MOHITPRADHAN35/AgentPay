@@ -11,10 +11,7 @@ import {
   CreditCard,
   QrCode,
   Clock,
-  Sparkles,
   ArrowRight,
-  UtensilsCrossed,
-  Bike
 } from "lucide-react";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,7 +26,6 @@ import { authenticateWithBiometrics } from "@/utils/webauthn";
 import { getDefaultAddress, type UserAddress } from "@/lib/services/addressService";
 import { AddressVaultDialog } from "@/components/app/AddressVaultDialog";
 import { createUpiCollectRequest, checkUpiStatus, getStoredUpiId, getStoredPayeeVpa, setStoredPayeeVpa, type UpiCollectRequest } from "@/lib/services/upiService";
-import { callZomatoMcpTool } from "@/lib/integrations/mcp/zomatoMcp";
 import { cn } from "@/lib/utils";
 
 function isFoodOrder(p: Product | null): boolean {
@@ -70,7 +66,6 @@ export function AuthorizationDialog({
   const [status, setStatus] = useState<"idle" | "capturing" | "success" | "error" | "cancelled">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedTx, setCompletedTx] = useState<Transaction | null>(null);
-  const [zomatoOrder, setZomatoOrder] = useState<any | null>(null);
 
   const [selectedAddress, setSelectedAddress] = useState<UserAddress>(() => {
     return latestTask?.deliveryAddress || getDefaultAddress();
@@ -125,7 +120,6 @@ export function AuthorizationDialog({
     setStatus("idle");
     setErrorMessage(null);
     setCompletedTx(null);
-    setZomatoOrder(null);
     setUpiTimer(300);
   }, [product?.id, product?.merchant, total, open]);
 
@@ -136,8 +130,8 @@ export function AuthorizationDialog({
 
   const handleLaunchBrowserAgent = async () => {
     try {
-      toast.info("Launching Chrome Browser Agent...", {
-        description: "Opening real Google Chrome to automate Zomato food procurement.",
+      toast.info("Launching Edge Browser Agent...", {
+        description: "Opening real Microsoft Edge to automate Zomato food procurement.",
       });
       await fetch("http://localhost:5000/api/browser-agent/zomato", {
         method: "POST",
@@ -149,8 +143,8 @@ export function AuthorizationDialog({
           address: selectedAddress.street + ", " + selectedAddress.city,
         }),
       });
-      toast.success("Chrome Browser Agent Active", {
-        description: "Check your screen/taskbar for the active Google Chrome window.",
+      toast.success("Edge Browser Agent Active", {
+        description: "Check your screen/taskbar for the active Microsoft Edge window.",
       });
     } catch (err: any) {
       toast.error("Could not reach backend browser agent: " + err.message);
@@ -191,19 +185,6 @@ export function AuthorizationDialog({
           deliveryAddress: selectedAddress,
         });
 
-        // If food ordering, place real Zomato MCP order
-        if (isFoodOrder(product)) {
-          const zOrder = await callZomatoMcpTool("place_order", {
-            restaurantName: product.merchant,
-            product,
-            items: [product.title],
-            totalUsd: total,
-            totalInr: upiCollect.amountInr,
-            deliveryAddress: selectedAddress,
-          });
-          setZomatoOrder(zOrder);
-        }
-
         setCompletedTx(tx);
         setStatus("success");
         confetti({ particleCount: 70, spread: 80, origin: { y: 0.6 } });
@@ -212,8 +193,8 @@ export function AuthorizationDialog({
         queryClient.invalidateQueries({ queryKey: ["latestTask"] });
         queryClient.invalidateQueries({ queryKey: ["audit"] });
 
-        toast.success("UPI Payment Verified & Order Dispatched!", {
-          description: `Bank Reference ${bankRefNumber} confirmed. Delivery dispatched to ${selectedAddress.alias}.`
+        toast.success("UPI Payment Verified & Recorded!", {
+          description: `Bank Reference ${bankRefNumber} confirmed and logged to audit ledger.`
         });
       }
     } catch (err: any) {
@@ -255,18 +236,6 @@ export function AuthorizationDialog({
         finalOrderId = res.orderId;
       }
       const tx = await captureOrder({ orderId: finalOrderId, taskId, product });
-
-      if (isFoodOrder(product)) {
-        const zOrder = await callZomatoMcpTool("place_order", {
-          restaurantName: product.merchant,
-          product,
-          items: [product.title],
-          totalUsd: total,
-          totalInr: Math.round(total * 86),
-          deliveryAddress: selectedAddress,
-        });
-        setZomatoOrder(zOrder);
-      }
 
       setCompletedTx(tx);
       setStatus("success");
@@ -338,10 +307,10 @@ export function AuthorizationDialog({
                 }}
                 className="w-full h-11 text-sm font-semibold bg-gradient-to-r from-rose-600 via-pink-600 to-rose-500 hover:from-rose-500 hover:to-pink-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-2"
               >
-                <ExternalLink className="size-4" /> 🚀 Order on Zomato (Launch Chrome Agent)
+                <ExternalLink className="size-4" /> 🚀 Order on Zomato (Launch Edge Agent)
               </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Launches your real Google Chrome browser on your desktop to search, cart, and open real Zomato checkout.
+                Launches real Microsoft Edge browser on your desktop to search, cart, and open real Zomato checkout.
               </p>
             </div>
           </div>
@@ -563,23 +532,6 @@ export function AuthorizationDialog({
                         </p>
                       </div>
 
-                      {/* ⚡ Instant Simulated Mobile Approval (Zero Bank Downtime / Local testing) */}
-                      <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-center space-y-1">
-                        <p className="text-[11px] text-emerald-300 font-medium">
-                          Quick test or want instant gateway release?
-                        </p>
-                        <Button
-                          type="button"
-                          variant="brand"
-                          size="sm"
-                          disabled={status === "capturing" || (over && !consent)}
-                          onClick={() => handleVerifyUpi(false)}
-                          className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow h-8 cursor-pointer"
-                        >
-                          <Sparkles className="size-3.5 mr-1" /> ⚡ 1-Click Simulate Mobile App Approval
-                        </Button>
-                      </div>
-
                       <div className="flex items-center justify-center gap-2 text-xs font-mono text-muted-foreground">
                         <Clock className="size-3.5 text-amber-400" />
                         <span>Awaiting Scan / Approval: <b className="text-amber-400">{Math.floor(upiTimer / 60)}:{String(upiTimer % 60).padStart(2, "0")}</b></span>
@@ -627,24 +579,6 @@ export function AuthorizationDialog({
                           </Button>
                         </div>
 
-                        {/* Real-World Chrome Browser Agent Launcher */}
-                        {isFoodOrder(product) && (
-                          <div className="pt-2 border-t border-border/40">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleLaunchBrowserAgent}
-                              className="w-full text-xs font-semibold border-rose-500/40 text-rose-300 hover:bg-rose-500/10 cursor-pointer flex items-center justify-center gap-1.5 h-8"
-                            >
-                              <ExternalLink className="size-3.5 text-rose-400" />
-                              🌐 Launch Real Chrome Browser Agent (Zomato)
-                            </Button>
-                            <p className="mt-1 text-[10px] text-muted-foreground text-center">
-                              Opens your visible Google Chrome to search, cart &amp; reach real Zomato checkout.
-                            </p>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}

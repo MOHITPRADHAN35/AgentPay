@@ -98,7 +98,7 @@ function Discovery() {
     const merchantName = p.merchant?.toLowerCase().includes("amazon") ? "amazon" : "zomato";
 
     toast.info(`🚀 Autonomous Browser Agent Dispatched (${merchantName.toUpperCase()})`, {
-      description: `Opening persistent Google Chrome session to stage ${cleanDish || p.title} in your cart...`,
+      description: `Opening persistent Microsoft Edge session to stage ${cleanDish || p.title} in your cart...`,
     });
 
     try {
@@ -137,8 +137,8 @@ function Discovery() {
           address: deliveryStr,
         }),
       }).catch(() => {});
-      toast.success("Google Chrome Active on Screen!", {
-        description: `Browser window opened for ${cleanDish || p.title}. Check desktop to finalize!`,
+      toast.success("Microsoft Edge Active on Screen!", {
+        description: `Browser window opened for ${cleanDish || p.title}. Check taskbar/desktop to finalize!`,
       });
     } finally {
       setBrowserLaunching(false);
@@ -156,7 +156,7 @@ function Discovery() {
         setSensitiveAuthType(res.sensitiveAuthType || "OTP");
         setSensitiveHandoffOpen(true);
         toast.info("Sensitive Authentication Required", {
-          description: "Please complete OTP or PIN entry directly on the merchant page in Chrome.",
+          description: "Please complete OTP or PIN entry directly on the merchant page in Microsoft Edge.",
         });
       } else {
         toast.success("Order Authorized and Dispatched!", {
@@ -206,7 +206,7 @@ function Discovery() {
     if (auto === "true" && topProduct && !selectedProduct && !authOpen) {
       if (isFoodProduct(topProduct)) {
         toast.info("Autonomous Winner Picked: " + topProduct.title, {
-          description: "Click '🚀 Order with Chrome Agent' to launch real Google Chrome directly!",
+          description: "Click '🚀 Order on Zomato' to launch real Microsoft Edge directly!",
         });
       } else {
         setSelectedProduct(topProduct);
@@ -295,7 +295,7 @@ function Discovery() {
                   {isFoodProduct(topProduct) ? (
                     <>
                       {browserLaunching ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
-                      {browserLaunching ? "Launching Chrome..." : "🚀 Order on Zomato"}
+                      {browserLaunching ? "Launching Edge..." : "🚀 Order on Zomato"}
                     </>
                   ) : (
                     <>
