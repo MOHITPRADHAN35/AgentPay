@@ -73,6 +73,7 @@ const statusStyles: Record<string, string> = {
   MISSING: "bg-warning/12 text-warning border-warning/25",
   CONNECTED: "bg-success/12 text-success border-success/25",
   ERROR: "bg-destructive/12 text-destructive border-destructive/25",
+  NEEDS_VERIFICATION: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 export function StatusBadge({ status, className }: { status: AgentStatus | string; className?: string }) {
   return (

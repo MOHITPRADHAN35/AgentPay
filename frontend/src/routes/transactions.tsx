@@ -139,7 +139,7 @@ function Transactions() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {["all", "COMPLETED", "PENDING", "FAILED", "CANCELLED"].map((s) => (
+            {["all", "COMPLETED", "NEEDS_VERIFICATION", "PENDING", "FAILED", "CANCELLED"].map((s) => (
               <SelectItem key={s} value={s}>
                 {s === "all" ? "All statuses" : s}
               </SelectItem>

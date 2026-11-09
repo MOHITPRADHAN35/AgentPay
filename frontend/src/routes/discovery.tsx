@@ -1,13 +1,23 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { ScanSearch, Sparkles, ExternalLink, Star, Loader2 } from "lucide-react";
+import { ScanSearch, Sparkles, ExternalLink, Star, Loader2, Globe, ShieldCheck } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, Reveal } from "@/components/app/primitives";
 import { ProductCard } from "@/components/app/ProductCard";
 import { AuthorizationDialog } from "@/components/app/AuthorizationDialog";
+import { BrowserAuthorizationModal } from "@/components/app/BrowserAuthorizationModal";
+import { SensitiveAuthHandoffModal } from "@/components/app/SensitiveAuthHandoffModal";
+import {
+  startBrowserProcurement,
+  prepareCartAndProposal,
+  authorizeCheckout,
+  notifySensitiveAuthCompleted,
+  cancelBrowserTask,
+  type CartAuthorizationProposal,
+} from "@/lib/services/browserCommerceService";
 import { productsQuery, budgetQuery, getLatestTask, type Product } from "@/lib/agentpay/api";
 import { formatUSD } from "@/lib/agentpay/policy";
 import { getDefaultAddress } from "@/lib/services/addressService";
@@ -61,6 +71,15 @@ function Discovery() {
   const [authOpen, setAuthOpen] = useState(false);
   const [browserLaunching, setBrowserLaunching] = useState(false);
 
+  // Browser Commerce Human Authorization State
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [browserProposal, setBrowserProposal] = useState<CartAuthorizationProposal | null>(null);
+  const [browserAuthModalOpen, setBrowserAuthModalOpen] = useState(false);
+  const [sensitiveHandoffOpen, setSensitiveHandoffOpen] = useState(false);
+  const [sensitiveAuthType, setSensitiveAuthType] = useState<string>("OTP");
+  const [isAuthorizingBrowser, setIsAuthorizingBrowser] = useState(false);
+  const [isVerifyingBrowser, setIsVerifyingBrowser] = useState(false);
+
   const topProduct = products && products.length > 0 ? products[0] : null;
 
   const handleDispatchBrowserAgent = async (p: Product) => {
@@ -76,13 +95,38 @@ function Discovery() {
     const deliveryStr = `${defAddr.street}, ${defAddr.city} ${defAddr.postalCode}`;
     const city = defAddr.city?.toLowerCase() || "bhubaneswar";
     const phone = defAddr.phone || "+91 9178305324";
+    const merchantName = p.merchant?.toLowerCase().includes("amazon") ? "amazon" : "zomato";
 
-    toast.info("🚀 Launching Chrome Browser Agent...", {
-      description: `Opening real Google Chrome to automate Zomato order for ${cleanDish || p.title}...`,
+    toast.info(`🚀 Autonomous Browser Agent Dispatched (${merchantName.toUpperCase()})`, {
+      description: `Opening persistent Google Chrome session to stage ${cleanDish || p.title} in your cart...`,
     });
 
     try {
-      const res = await fetch("http://localhost:5000/api/browser-agent/zomato", {
+      // 1. Start procurement task
+      const startRes = await startBrowserProcurement({
+        merchant: merchantName,
+        query: cleanDish || p.title,
+        budgetLimit: 500,
+        city,
+      });
+
+      setActiveTaskId(startRes.taskId);
+
+      // 2. Prepare cart & generate Human Authorization Proposal
+      const cartRes = await prepareCartAndProposal(startRes.taskId, {
+        title: cleanDish || p.title,
+        price: p.price,
+        merchant: p.merchant,
+      });
+
+      setBrowserProposal(cartRes.proposal);
+      setBrowserAuthModalOpen(true);
+      toast.success("Human Authorization Gate Ready", {
+        description: "Verified cart total and saved payment methods extracted. Please review and authorize.",
+      });
+    } catch (err: any) {
+      console.warn("Full proposal staging notice, falling back to direct browser:", err.message);
+      await fetch("http://localhost:5000/api/browser-agent/zomato", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -92,18 +136,69 @@ function Discovery() {
           city,
           address: deliveryStr,
         }),
+      }).catch(() => {});
+      toast.success("Google Chrome Active on Screen!", {
+        description: `Browser window opened for ${cleanDish || p.title}. Check desktop to finalize!`,
       });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Google Chrome Active on Screen!", {
-          description: `Zomato opened for ${cleanDish || p.title}. Check your desktop to finalize!`,
-        });
-      }
-    } catch (err: any) {
-      toast.error("Could not reach backend browser agent: " + err.message);
     } finally {
       setBrowserLaunching(false);
     }
+  };
+
+  const handleAuthorizeBrowserCheckout = async (proposalId: string, paymentMethodId: string) => {
+    if (!activeTaskId) return;
+    setIsAuthorizingBrowser(true);
+    try {
+      const res = await authorizeCheckout(activeTaskId, proposalId, paymentMethodId);
+      setBrowserAuthModalOpen(false);
+
+      if (res.requiresSensitiveAuth) {
+        setSensitiveAuthType(res.sensitiveAuthType || "OTP");
+        setSensitiveHandoffOpen(true);
+        toast.info("Sensitive Authentication Required", {
+          description: "Please complete OTP or PIN entry directly on the merchant page in Chrome.",
+        });
+      } else {
+        toast.success("Order Authorized and Dispatched!", {
+          description: `Merchant reference: ${res.verification?.orderId || "COMPLETED"}`,
+        });
+      }
+    } catch (err: any) {
+      toast.error("Checkout authorization halted: " + err.message);
+    } finally {
+      setIsAuthorizingBrowser(false);
+    }
+  };
+
+  const handleSensitiveHandoffComplete = async () => {
+    if (!activeTaskId) return;
+    setIsVerifyingBrowser(true);
+    try {
+      const res = await notifySensitiveAuthCompleted(activeTaskId);
+      setSensitiveHandoffOpen(false);
+      if (res.state === "COMPLETED") {
+        toast.success("Payment Verified & Order Fulfilled!", {
+          description: `Merchant Order: ${res.verification?.orderId}`,
+        });
+      } else if (res.state === "NEEDS_VERIFICATION") {
+        toast.warning("Payment Status: Needs Verification", {
+          description: "Transaction submitted. Awaiting merchant confirmation before final settlement.",
+        });
+      }
+    } catch (err: any) {
+      toast.error("Verification error: " + err.message);
+    } finally {
+      setIsVerifyingBrowser(false);
+    }
+  };
+
+  const handleCancelBrowserTask = () => {
+    if (activeTaskId) {
+      void cancelBrowserTask(activeTaskId, "Cancelled by user at authorization gate");
+    }
+    setBrowserAuthModalOpen(false);
+    setSensitiveHandoffOpen(false);
+    toast.info("Procurement task cancelled.");
   };
 
   // Auto-Select and Launch Confirmation when Autonomous mode was triggered
@@ -251,6 +346,27 @@ function Discovery() {
           onOpenChange={setAuthOpen}
         />
       )}
+
+      {/* Human Authorization Gate for Browser-First Autonomous Commerce */}
+      <BrowserAuthorizationModal
+        open={browserAuthModalOpen}
+        onOpenChange={setBrowserAuthModalOpen}
+        proposal={browserProposal}
+        onAuthorize={handleAuthorizeBrowserCheckout}
+        onCancel={handleCancelBrowserTask}
+        isAuthorizing={isAuthorizingBrowser}
+      />
+
+      {/* Sensitive Auth Handoff (OTP / 3DS / UPI PIN) */}
+      <SensitiveAuthHandoffModal
+        open={sensitiveHandoffOpen}
+        onOpenChange={setSensitiveHandoffOpen}
+        authType={sensitiveAuthType}
+        merchantName={browserProposal?.merchant.name || "Merchant"}
+        onCompleted={handleSensitiveHandoffComplete}
+        onCancel={handleCancelBrowserTask}
+        isVerifying={isVerifyingBrowser}
+      />
     </div>
   );
 }

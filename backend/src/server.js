@@ -303,6 +303,9 @@ app.post('/api/webhooks/paypal', async (req, res) => {
   }
 });
 
+import { defaultExecutionController, TaskState } from './browserCommerce/browserExecutionController.js';
+import { defaultSessionManager } from './browserCommerce/browserSessionManager.js';
+
 // 6. Real-World Zomato Playwright Browser Agent Endpoint
 app.post('/api/browser-agent/zomato', async (req, res) => {
   const {
@@ -331,6 +334,93 @@ app.post('/api/browser-agent/zomato', async (req, res) => {
       city,
       address,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. BROWSER-FIRST AUTONOMOUS COMMERCE REST API
+
+// Start Procurement & Discovery
+app.post('/api/browser/procure/start', async (req, res) => {
+  try {
+    const { userId = 'user_default', merchant = 'amazon', query = '', budgetLimit = 1000, city = 'bhubaneswar' } = req.body || {};
+    const task = await defaultExecutionController.createProcurementTask({
+      userId,
+      merchant,
+      query,
+      budgetLimit: Number(budgetLimit),
+      city
+    });
+
+    // Run discovery asynchronously
+    defaultExecutionController.executeDiscovery(task.id).catch((err) => {
+      console.error(`[BrowserProcure] Discovery error in task ${task.id}:`, err.message);
+    });
+
+    res.json({ success: true, taskId: task.id, state: task.state, task });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Stage Cart & Generate Human Authorization Proposal
+app.post('/api/browser/cart/prepare', async (req, res) => {
+  try {
+    const { taskId, selectedItem } = req.body || {};
+    if (!taskId || !selectedItem) {
+      return res.status(400).json({ error: 'taskId and selectedItem are required' });
+    }
+
+    const result = await defaultExecutionController.stageCartAndGenerateProposal(taskId, selectedItem);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: err.code });
+  }
+});
+
+// Human Authorization Approval
+app.post('/api/browser/checkout/authorize', async (req, res) => {
+  try {
+    const { taskId, proposalId, selectedPaymentMethodId } = req.body || {};
+    if (!taskId || !proposalId) {
+      return res.status(400).json({ error: 'taskId and proposalId are required' });
+    }
+
+    const result = await defaultExecutionController.authorizeAndProceedToCheckout(taskId, proposalId, selectedPaymentMethodId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    const status = err.code === 'PROPOSAL_EXPIRED' || err.code === 'CART_TOTAL_CHANGED_INVALIDATING_PROPOSAL' || err.code === 'DUPLICATE_PURCHASE_PREVENTED' ? 409 : 500;
+    res.status(status).json({ error: err.message, code: err.code });
+  }
+});
+
+// User Confirms Sensitive Auth (OTP / PIN) Entered on Merchant Page
+app.post('/api/browser/checkout/sensitive-handoff', async (req, res) => {
+  try {
+    const { taskId } = req.body || {};
+    if (!taskId) return res.status(400).json({ error: 'taskId is required' });
+
+    const result = await defaultExecutionController.notifySensitiveAuthComplete(taskId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get Task State & Verification
+app.get('/api/browser/task/:taskId', (req, res) => {
+  const task = defaultExecutionController.getTask(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  res.json({ success: true, task });
+});
+
+// Cancel Task
+app.post('/api/browser/task/cancel', async (req, res) => {
+  try {
+    const { taskId, reason } = req.body || {};
+    const success = await defaultExecutionController.cancelTask(taskId, reason);
+    res.json({ success });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

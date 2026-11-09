@@ -63,11 +63,14 @@ export type Transaction = {
   description: string;
   sku: string;
   merchant: string;
+  merchantDomain?: string;
   amount: number;
   currency: string;
   paypalOrderId: string;
   captureId: string | null;
-  status: "COMPLETED" | "PENDING" | "FAILED" | "CANCELLED";
+  channel?: "BROWSER_AGENT" | "PAYPAL_API" | "UPI_GATEWAY";
+  verificationEvidence?: string;
+  status: "COMPLETED" | "PENDING" | "FAILED" | "CANCELLED" | "NEEDS_VERIFICATION";
 };
 
 export type AuditEntry = {
