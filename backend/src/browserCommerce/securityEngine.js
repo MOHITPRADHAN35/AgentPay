@@ -22,6 +22,9 @@ export const DEFAULT_ALLOWED_DOMAINS = [
   "swiggy.item",
   "googleapis.com",
   "gstatic.com",
+  // Public Diagnostic / Health Verification Domains
+  "example.com",
+  "httpbin.org",
   // Banking & Payment Gateway Handoffs (for 3DS / OTP verification)
   "razorpay.com",
   "billdesk.com",

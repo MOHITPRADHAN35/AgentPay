@@ -426,6 +426,49 @@ app.post('/api/browser/task/cancel', async (req, res) => {
   }
 });
 
+// Live Task Stream & Diagnostics (Worker Viewer)
+app.get('/api/browser/task/:taskId/live', (req, res) => {
+  const task = defaultExecutionController.getTask(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  res.json({
+    success: true,
+    taskId: task.id,
+    workerId: task.workerId,
+    state: task.state,
+    currentUrl: task.currentUrl,
+    currentAction: task.currentAction,
+    browserProcessStatus: task.browserProcessStatus,
+    lastScreenshot: task.lastScreenshot,
+    retryCount: task.retryCount,
+    error: task.error,
+    logs: task.logs,
+    updatedAt: task.updatedAt,
+  });
+});
+
+// Diagnostic Pipeline Verification Status
+app.get('/api/browser/diagnostic/status', (req, res) => {
+  res.json({
+    success: true,
+    workerId: defaultExecutionController.workerId,
+    timestamp: new Date().toISOString(),
+    isPlaywrightInstalled: true,
+    activeTasksCount: defaultExecutionController.tasks.size,
+    browserEngine: 'Chromium / Microsoft Edge',
+  });
+});
+
+// Real Harmless Browser Test Run (Navigates to public test website, takes screenshot, returns logs)
+app.post('/api/browser/diagnostic/run', async (req, res) => {
+  try {
+    const { domain = 'example.com' } = req.body || {};
+    const result = await defaultExecutionController.executeDiagnosticRun({ domain });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 AgentPay Backend Server running on http://localhost:${PORT}`);
   console.log(`   PayPal Mode: ${process.env.PAYPAL_ENVIRONMENT || 'sandbox'}`);

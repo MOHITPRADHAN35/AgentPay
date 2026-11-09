@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { ScanSearch, Sparkles, ExternalLink, Star, Loader2, Globe, ShieldCheck } from "lucide-react";
+import { ScanSearch, Sparkles, ExternalLink, Star, Loader2, Globe, ShieldCheck, Cpu } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { ProductCard } from "@/components/app/ProductCard";
 import { AuthorizationDialog } from "@/components/app/AuthorizationDialog";
 import { BrowserAuthorizationModal } from "@/components/app/BrowserAuthorizationModal";
 import { SensitiveAuthHandoffModal } from "@/components/app/SensitiveAuthHandoffModal";
+import { LiveBrowserExecutionViewer } from "@/components/app/LiveBrowserExecutionViewer";
 import {
   startBrowserProcurement,
   prepareCartAndProposal,
@@ -79,11 +80,13 @@ function Discovery() {
   const [sensitiveAuthType, setSensitiveAuthType] = useState<string>("OTP");
   const [isAuthorizingBrowser, setIsAuthorizingBrowser] = useState(false);
   const [isVerifyingBrowser, setIsVerifyingBrowser] = useState(false);
+  const [showBrowserViewer, setShowBrowserViewer] = useState(false);
 
   const topProduct = products && products.length > 0 ? products[0] : null;
 
   const handleDispatchBrowserAgent = async (p: Product) => {
     setBrowserLaunching(true);
+    setShowBrowserViewer(true);
     const cleanDish = p.title
       .replace(/\(Wow! China\)/gi, "")
       .replace(/\(Berco's.*?\)/gi, "")
@@ -245,7 +248,16 @@ function Discovery() {
         title="Live Discovered Options"
         description="Verified listings retrieved directly from live providers (Google Shopping, Cloud Infrastructure Registry). Prices are verified, never hallucinated."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBrowserViewer((v) => !v)}
+              className="text-xs border-primary/40 text-primary cursor-pointer flex items-center gap-1.5 h-9"
+            >
+              <Cpu className="size-3.5" />
+              {showBrowserViewer ? "Hide Browser Viewer" : "Live Browser Viewer"}
+            </Button>
             <Button variant="glass" asChild>
               <Link to="/comparisons">View Comparison Matrix</Link>
             </Button>
@@ -255,6 +267,16 @@ function Discovery() {
           </div>
         }
       />
+
+      {/* Live Browser Execution Stream & Diagnostic Viewer */}
+      {showBrowserViewer && (
+        <div className="mb-6">
+          <LiveBrowserExecutionViewer
+            taskId={activeTaskId}
+            onClose={() => setShowBrowserViewer(false)}
+          />
+        </div>
+      )}
 
       {/* Autonomous Recommendation Banner */}
       {topProduct && (

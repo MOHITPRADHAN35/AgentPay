@@ -6,18 +6,28 @@ import { GenericMerchantAdapter } from "./merchantAdapters/GenericMerchantAdapte
 import { redactSensitiveData, sanitizeWebpageContent, assertDomainAllowed } from "./securityEngine.js";
 
 export const TaskState = {
-  INITIALIZING: "INITIALIZING",
+  // Formal Execution Pipeline States
+  CREATED: "CREATED",
+  QUEUED: "QUEUED",
+  STARTING: "STARTING",
+  BROWSER_CONNECTED: "BROWSER_CONNECTED",
   NAVIGATING: "NAVIGATING",
+  EXECUTING: "EXECUTING",
+  AWAITING_USER: "AWAITING_USER",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+  CANCELLED: "CANCELLED",
+  NEEDS_USER_ACTION: "NEEDS_USER_ACTION",
+  NEEDS_VERIFICATION: "NEEDS_VERIFICATION",
+
+  // Aliases for compatibility
+  INITIALIZING: "INITIALIZING",
   DISCOVERING: "DISCOVERING",
   CART_PREPARED: "CART_PREPARED",
   AWAITING_HUMAN_AUTH: "AWAITING_HUMAN_AUTH",
   CHECKOUT_IN_PROGRESS: "CHECKOUT_IN_PROGRESS",
   AWAITING_SENSITIVE_AUTH: "AWAITING_SENSITIVE_AUTH",
   VERIFYING_PAYMENT: "VERIFYING_PAYMENT",
-  COMPLETED: "COMPLETED",
-  NEEDS_VERIFICATION: "NEEDS_VERIFICATION",
-  FAILED: "FAILED",
-  CANCELLED: "CANCELLED",
 };
 
 export class BrowserExecutionController {
@@ -25,6 +35,7 @@ export class BrowserExecutionController {
     this.sessionManager = sessionManager;
     this.tasks = new Map(); // taskId -> TaskRecord
     this.processedIdempotencyKeys = new Set();
+    this.workerId = `worker_${process.pid}_${Date.now().toString(36)}`;
   }
 
   getAdapter(merchantName, domain, city) {
@@ -34,14 +45,31 @@ export class BrowserExecutionController {
     return new GenericMerchantAdapter(merchantName, domain || "merchant.com");
   }
 
-  logStep(task, stepName, details = {}) {
+  logStep(task, stepName, details = {}, action = "") {
+    if (action) task.currentAction = action;
     const entry = {
       timestamp: new Date().toISOString(),
       step: stepName,
+      action: action || stepName,
+      workerId: task.workerId || this.workerId,
+      url: task.currentUrl || "about:blank",
       details: redactSensitiveData(details),
     };
     task.logs.push(entry);
     task.updatedAt = new Date();
+  }
+
+  async captureScreenshot(task, page) {
+    if (!page) return null;
+    try {
+      const buf = await page.screenshot({ type: "jpeg", quality: 60 });
+      const base64 = `data:image/jpeg;base64,${buf.toString("base64")}`;
+      task.lastScreenshot = base64;
+      task.currentUrl = page.url();
+      return base64;
+    } catch (_) {
+      return null;
+    }
   }
 
   /**
@@ -60,6 +88,7 @@ export class BrowserExecutionController {
 
     const task = {
       id: taskId,
+      workerId: this.workerId,
       userId,
       merchant: adapter.name,
       domain: adapter.defaultDomain,
@@ -68,20 +97,105 @@ export class BrowserExecutionController {
       budgetLimit,
       state: TaskState.INITIALIZING,
       sessionId: null,
+      browserProcessStatus: "IDLE",
+      currentUrl: "about:blank",
+      currentAction: "TASK_CREATED",
+      lastScreenshot: null,
       discoveredItems: [],
       selectedItem: null,
       proposal: null,
       idempotencyKey: null,
       sensitiveAuthType: null,
       orderVerification: null,
+      retryCount: 0,
+      error: null,
+      finalResult: null,
       logs: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     this.tasks.set(taskId, task);
-    this.logStep(task, "TASK_CREATED", { merchant: adapter.name, query, budgetLimit });
+    this.logStep(task, "TASK_CREATED", { merchant: adapter.name, query, budgetLimit }, "Task Initialized");
     return task;
+  }
+
+  /**
+   * Runs a real, harmless diagnostic browser test navigating to a permitted public website.
+   * Proves real browser connection, page loading, screenshot capture, and state progression.
+   */
+  async executeDiagnosticRun(options = {}) {
+    const domain = options.domain || "example.com";
+    const targetUrl = `https://${domain}`;
+    assertDomainAllowed(targetUrl);
+
+    const task = await this.createProcurementTask({
+      userId: "diagnostic_user",
+      merchant: "DiagnosticVerifier",
+      domain,
+      query: "health-check",
+      budgetLimit: 100,
+    });
+
+    task.state = TaskState.QUEUED;
+    this.logStep(task, "QUEUED", { domain }, "Task queued in browser worker pipeline");
+
+    task.state = TaskState.STARTING;
+    this.logStep(task, "STARTING", { workerId: this.workerId }, "Worker claimed task from queue");
+
+    try {
+      const { sessionId, page } = await this.sessionManager.acquireSession({
+        userId: task.userId,
+        merchant: "diagnostic",
+        headless: true,
+      });
+
+      task.sessionId = sessionId;
+      task.state = TaskState.BROWSER_CONNECTED;
+      task.browserProcessStatus = "CONNECTED";
+      this.logStep(task, "BROWSER_CONNECTED", { sessionId }, "Browser connected via Playwright");
+
+      task.state = TaskState.NAVIGATING;
+      task.currentUrl = targetUrl;
+      this.logStep(task, "NAVIGATING", { url: targetUrl }, `Navigating to ${targetUrl}`);
+
+      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await this.captureScreenshot(task, page);
+
+      task.state = TaskState.EXECUTING;
+      this.logStep(task, "EXECUTING", { url: page.url() }, "Inspecting DOM and extracting page title");
+
+      const title = await page.title();
+      await page.waitForTimeout(500);
+      await this.captureScreenshot(task, page);
+
+      task.state = TaskState.COMPLETED;
+      task.browserProcessStatus = "COMPLETED";
+      task.finalResult = {
+        success: true,
+        title,
+        url: page.url(),
+        completedAt: new Date().toISOString(),
+      };
+      this.logStep(task, "COMPLETED", task.finalResult, "Harmless diagnostic test completed successfully");
+
+      return {
+        success: true,
+        taskId: task.id,
+        workerId: this.workerId,
+        state: task.state,
+        title,
+        url: page.url(),
+        screenshot: task.lastScreenshot,
+        logs: task.logs,
+      };
+    } catch (err) {
+      task.state = TaskState.FAILED;
+      task.browserProcessStatus = "ERROR";
+      task.error = { message: err.message, stack: err.stack };
+      this.logStep(task, "FAILED", { error: err.message }, `Diagnostic failed: ${err.message}`);
+      throw err;
+    }
   }
 
   /**
@@ -107,9 +221,10 @@ export class BrowserExecutionController {
 
       const adapter = this.getAdapter(task.merchant, task.domain, task.city);
       const items = await adapter.search(page, task.query, { budget: task.budgetLimit });
+      await this.captureScreenshot(task, page);
 
       task.discoveredItems = items;
-      this.logStep(task, "DISCOVERY_COMPLETED", { itemCount: items.length });
+      this.logStep(task, "DISCOVERY_COMPLETED", { itemCount: items.length }, "Product catalog scanned");
       return { taskId, state: task.state, items };
     } catch (err) {
       task.state = TaskState.FAILED;
@@ -146,6 +261,7 @@ export class BrowserExecutionController {
 
       this.logStep(task, "INSPECTING_CART_AND_SAVED_PAYMENTS");
       const cartSummary = await adapter.getCartSummary(session.page, selectedItem);
+      await this.captureScreenshot(task, session.page);
 
       // Enforce zero-trust domain check
       assertDomainAllowed(`https://${cartSummary.merchantDomain}`);
@@ -287,6 +403,7 @@ export class BrowserExecutionController {
 
     // Advance checkout to payment handoff
     const checkoutResult = await adapter.selectSavedPaymentMethodAndAdvance(session.page, selectedPaymentMethodId);
+    await this.captureScreenshot(task, session.page);
 
     if (checkoutResult.requiresSensitiveAuth) {
       task.state = TaskState.AWAITING_SENSITIVE_AUTH;
