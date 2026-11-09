@@ -314,25 +314,37 @@ export function AuthorizationDialog({
 
             {/* Zomato Live Order Tracker Card */}
             {zomatoOrder && (
-              <div className="rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 to-slate-900/60 p-4 text-left space-y-2.5">
+              <div className="rounded-xl border border-emerald-500/40 bg-card p-4 text-left space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                    <UtensilsCrossed className="size-3.5" /> {zomatoOrder.restaurantName}
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                    <UtensilsCrossed className="size-3.5 text-rose-500" /> {zomatoOrder.restaurantName}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-semibold animate-pulse">
-                    ● Kitchen Preparing
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-bold">
+                      MCP SIMULATION
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-semibold animate-pulse">
+                      ● Kitchen Preparing
+                    </span>
+                  </div>
                 </div>
+
                 <div className="text-xs space-y-1">
                   <p className="font-mono text-[11px] text-muted-foreground">Order Ref: <span className="text-foreground font-semibold">{zomatoOrder.orderId}</span></p>
                   <p className="text-foreground font-medium">{product.title}</p>
                 </div>
-                <div className="border-t border-emerald-500/20 pt-2 flex items-center justify-between text-xs">
+
+                <div className="border-t border-border/60 pt-2 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Bike className="size-3.5 text-emerald-400" />
-                    <span>Rider: <b className="text-foreground">{zomatoOrder.deliveryExecutive?.name}</b></span>
+                    <Bike className="size-3.5 text-emerald-500" />
+                    <span>Rider: <b className="text-foreground">{zomatoOrder.deliveryExecutive?.name}</b> (Simulated)</span>
                   </div>
-                  <span className="font-mono text-emerald-400 font-semibold">ETA ~{zomatoOrder.estimatedDeliveryMins} mins</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">ETA ~{zomatoOrder.estimatedDeliveryMins} mins</span>
+                </div>
+
+                <div className="rounded-lg bg-muted/60 p-2 text-[11px] text-muted-foreground leading-relaxed border border-border/40">
+                  <p className="font-medium text-foreground">💡 Hackathon MCP Demo Notice:</p>
+                  <p>Zero real rupees were charged to your bank. This demonstrates how an autonomous AI agent interfaces with merchant delivery APIs. To place an actual real-life order, launch the Chrome Browser Agent below.</p>
                 </div>
               </div>
             )}
@@ -350,8 +362,20 @@ export function AuthorizationDialog({
               </div>
               <p className="text-foreground">{selectedAddress.name} · {selectedAddress.phone}</p>
               <p className="text-muted-foreground">{selectedAddress.street}{selectedAddress.landmark ? `, ${selectedAddress.landmark}` : ""}, {selectedAddress.city} {selectedAddress.postalCode}</p>
-              <p className="text-emerald-400 text-[11px] pt-1">Estimated Courier Arrival: 20-25 Mins (Express Kitchen Dispatch)</p>
+              <p className="text-emerald-600 dark:text-emerald-400 text-[11px] pt-1">Estimated Courier Arrival: 20-25 Mins (Express Kitchen Dispatch)</p>
             </div>
+
+            {isFoodOrder(product) && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full text-xs font-semibold border-rose-500/40 text-rose-500 dark:text-rose-300 hover:bg-rose-500/10 cursor-pointer flex items-center justify-center gap-1.5"
+                onClick={handleLaunchBrowserAgent}
+              >
+                <ExternalLink className="size-3.5 text-rose-500" />
+                🌐 Order Real Food: Launch Chrome Browser Agent
+              </Button>
+            )}
 
             <Button variant="default" className="w-full bg-emerald-600 hover:bg-emerald-500 cursor-pointer" onClick={() => onOpenChange(false)}>
               Close &amp; View Ledger
