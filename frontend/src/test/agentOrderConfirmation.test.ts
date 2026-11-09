@@ -113,12 +113,16 @@ describe("Agent Mode Order Confirmation & Payment-Time Windows Hello", () => {
     const upiReq = createUpiCollectRequest({
       amountUsd: 2.20,
       note: "AgentPay: Veg Chowmein",
-      customVpa: "mohit@okhdfcbank"
+      customVpa: "mohit@okhdfcbank",
+      customPayeeVpa: "mohit@okhdfcbank"
     });
 
     expect(upiReq.vpa).toBe("mohit@okhdfcbank");
+    expect(upiReq.payeeVpa).toBe("mohit@okhdfcbank");
     expect(upiReq.amountInr).toBe(Math.round(2.20 * 86));
     expect(upiReq.qrPayload).toContain("upi://pay?");
+    // Critical: must have literal '@' and NOT '%40' to prevent phone UPI apps showing 'temporary technical issue'
+    expect(upiReq.qrPayload).toContain("pa=mohit@okhdfcbank");
     expect(upiReq.status).toBe("REQUEST_SENT");
   });
 });

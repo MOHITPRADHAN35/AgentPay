@@ -39,6 +39,8 @@ export type Product = {
   title: string;
   brand?: string;
   merchant: string;
+  category?: string;
+  itemType?: string;
   merchantUrl?: string;
   image?: string;
   price: number;
@@ -197,28 +199,40 @@ export async function getLatestTask(): Promise<any> {
 
 export async function listDiscoveredProducts(): Promise<Product[]> {
   const task = await getBackendLatestTask();
-  if (!task || !task.comparison?.products) return [];
+  if (!task) return [];
 
-  return task.comparison.products.map((p: any) => ({
-    id: p.id,
-    title: p.title,
-    brand: p.brand,
-    merchant: p.merchant.name,
-    merchantUrl: p.productUrl,
-    image: p.imageUrl,
-    price: p.price,
-    shipping: p.shippingCost,
-    tax: p.taxEstimated,
-    currency: p.currency,
-    rating: p.rating,
-    reviews: p.reviewsCount,
-    score: p.score,
-    matchReasons: p.matchReasons,
-    specs: Object.entries(p.specifications || {}).map(([k, v]) => `${k.toUpperCase()}: ${v}`),
-    rawSpecs: p.specifications || {},
-    availability: p.availability === "IN_STOCK" ? "In Stock" : p.availability,
-    verified: p.merchant.isVerified,
-  }));
+  const rawList = task.comparison?.products || (task.recommendedProduct ? [task.recommendedProduct] : []);
+  if (!rawList.length) return [];
+
+  return rawList.map((p: any) => {
+    const merchantName = typeof p.merchant === "object" ? (p.merchant?.name || "Merchant") : (p.merchant || "Merchant");
+    const isVerified = typeof p.merchant === "object" ? (p.merchant?.isVerified ?? true) : true;
+    const cat = p.category || task.category || "Procured Products";
+    const itemType = p.itemType || (/(food|zomato|chowmein|noodle|pizza|burger)/i.test(cat + " " + p.title) ? "FOOD_DINING" : "GENERAL");
+
+    return {
+      id: p.id,
+      title: p.title,
+      brand: p.brand,
+      merchant: merchantName,
+      category: cat,
+      itemType,
+      merchantUrl: p.productUrl,
+      image: p.imageUrl,
+      price: p.price,
+      shipping: p.shippingCost,
+      tax: p.taxEstimated,
+      currency: p.currency,
+      rating: p.rating,
+      reviews: p.reviewsCount,
+      score: p.score,
+      matchReasons: p.matchReasons,
+      specs: Object.entries(p.specifications || {}).map(([k, v]) => `${k.toUpperCase()}: ${v}`),
+      rawSpecs: p.specifications || {},
+      availability: p.availability === "IN_STOCK" ? "In Stock" : p.availability,
+      verified: isVerified,
+    };
+  });
 }
 
 export async function createOrder(params: { taskId?: string; product: Product; override?: boolean }): Promise<{ orderId: string }> {
@@ -280,7 +294,19 @@ export async function listTransactions(): Promise<Transaction[]> {
       createdAt: r.createdAt,
       description: r.description,
       sku: r.sku,
-      merchant: r.sku.includes("domain") ? "Namecheap" : r.sku.includes("gpu") ? "RunPod" : "Verified Merchant",
+      merchant: r.sku?.includes("domain")
+        ? "Namecheap"
+        : r.sku?.includes("gpu")
+        ? "RunPod"
+        : /(china|wow)/i.test(r.description + " " + r.sku)
+        ? "Wow! China (Zomato)"
+        : /berco/i.test(r.description + " " + r.sku)
+        ? "Berco's (Zomato)"
+        : /pizza|tossin/i.test(r.description + " " + r.sku)
+        ? "Tossin Pizza (Zomato)"
+        : /zomato|chowmein|noodle|biryani/i.test(r.description + " " + r.sku)
+        ? "Zomato Restaurant Partner"
+        : "Verified Merchant",
       amount: r.amount,
       currency: r.currency,
       paypalOrderId: r.orderId || "PAYPAL-ORDER-PENDING",

@@ -30,7 +30,7 @@ describe("UPI Mobile Push Collect Request Engine", () => {
 
     // NPCI UPI Deep Link validation
     expect(req.qrPayload).toContain("upi://pay?");
-    expect(req.qrPayload).toContain("pa=agentpay.procurement%40icici");
+    expect(req.qrPayload).toContain("pa=agentpay.procurement@icici");
     expect(req.qrPayload).toContain("am=860.00");
     expect(req.qrPayload).toContain("cu=INR");
   });

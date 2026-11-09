@@ -28,9 +28,24 @@ import { formatUSD, requiresOverride } from "@/lib/agentpay/policy";
 import { authenticateWithBiometrics } from "@/utils/webauthn";
 import { getDefaultAddress, type UserAddress } from "@/lib/services/addressService";
 import { AddressVaultDialog } from "@/components/app/AddressVaultDialog";
-import { createUpiCollectRequest, checkUpiStatus, getStoredUpiId, type UpiCollectRequest } from "@/lib/services/upiService";
+import { createUpiCollectRequest, checkUpiStatus, getStoredUpiId, getStoredPayeeVpa, setStoredPayeeVpa, type UpiCollectRequest } from "@/lib/services/upiService";
 import { callZomatoMcpTool } from "@/lib/integrations/mcp/zomatoMcp";
 import { cn } from "@/lib/utils";
+
+function isFoodOrder(p: Product | null): boolean {
+  if (!p) return false;
+  return Boolean(
+    p.category?.toLowerCase().includes("food") ||
+    p.category?.toLowerCase().includes("dining") ||
+    p.itemType === "FOOD_DINING" ||
+    p.id?.toLowerCase().includes("zomato") ||
+    p.id?.toLowerCase().includes("menu_") ||
+    p.merchant?.toLowerCase().includes("zomato") ||
+    /(zomato|swiggy|china|berco|tossin|pizza|chowmein|noodle|biryani|pasta|burger|mcdonald|starbucks|subway)/i.test(
+      (p.title || "") + " " + (p.merchant || "")
+    )
+  );
+}
 
 export function AuthorizationDialog({
   product,
@@ -64,6 +79,7 @@ export function AuthorizationDialog({
 
   // UPI Direct Scanner & Mobile Push state
   const [paymentMethod, setPaymentMethod] = useState<"upi" | "paypal">("upi");
+  const [payeeMode, setPayeeMode] = useState<"user" | "merchant">("user");
   const [upiCollect, setUpiCollect] = useState<UpiCollectRequest | null>(null);
   const [upiTimer, setUpiTimer] = useState(300);
   const userUpiId = getStoredUpiId();
@@ -90,14 +106,16 @@ export function AuthorizationDialog({
 
   useEffect(() => {
     if (product && open) {
+      const activePayee = payeeMode === "user" ? userUpiId : "agentpay.procurement@icici";
       const req = createUpiCollectRequest({
         amountUsd: total,
         note: `AgentPay: ${product.title.slice(0, 30)}`,
-        customVpa: userUpiId
+        customVpa: userUpiId,
+        customPayeeVpa: activePayee
       });
       setUpiCollect(req);
     }
-  }, [product?.id, total, open, userUpiId]);
+  }, [product?.id, total, open, userUpiId, payeeMode]);
 
   useEffect(() => {
     setConsent(false);
@@ -151,7 +169,7 @@ export function AuthorizationDialog({
         });
 
         // If food ordering, place real Zomato MCP order
-        if (product.category?.toLowerCase().includes("food") || product.itemType === "FOOD_DINING" || product.id?.includes("zomato")) {
+        if (isFoodOrder(product)) {
           const zOrder = await callZomatoMcpTool("place_order", {
             restaurantName: product.merchant,
             product,
@@ -215,7 +233,7 @@ export function AuthorizationDialog({
       }
       const tx = await captureOrder({ orderId: finalOrderId, taskId, product });
 
-      if (product.category?.toLowerCase().includes("food") || product.itemType === "FOOD_DINING" || product.id?.includes("zomato")) {
+      if (isFoodOrder(product)) {
         const zOrder = await callZomatoMcpTool("place_order", {
           restaurantName: product.merchant,
           product,
@@ -473,6 +491,62 @@ export function AuthorizationDialog({
                           className="size-36 mx-auto"
                         />
                         <p className="mt-1.5 text-[11px] font-semibold text-gray-800">Scan with Google Pay, PhonePe, or Paytm</p>
+                      </div>
+
+                      {/* Payee VPA selector: Resolves NPCI 'Temporary Technical Issue' */}
+                      <div className="rounded-lg bg-background/60 border border-glass-border p-2.5 text-xs text-left space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-muted-foreground">Receiving UPI ID (Payee):</span>
+                          <span className="font-mono text-[11px] font-semibold text-emerald-400 truncate max-w-[190px]">
+                            {upiCollect.payeeVpa}
+                          </span>
+                        </div>
+                        <div className="flex gap-1.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setPayeeMode("user")}
+                            className={cn(
+                              "flex-1 text-[10px] py-1 px-1.5 rounded border transition-colors cursor-pointer",
+                              payeeMode === "user"
+                                ? "bg-primary/20 border-primary text-primary font-semibold"
+                                : "border-border text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            My Real UPI ID ({userUpiId.split("@")[0]}...)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPayeeMode("merchant")}
+                            className={cn(
+                              "flex-1 text-[10px] py-1 px-1.5 rounded border transition-colors cursor-pointer",
+                              payeeMode === "merchant"
+                                ? "bg-primary/20 border-primary text-primary font-semibold"
+                                : "border-border text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            Merchant Gateway
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/80 leading-tight">
+                          Tip: If your phone says &quot;Temporary technical issue&quot;, select &quot;My Real UPI ID&quot; so NPCI recognizes a registered banking address.
+                        </p>
+                      </div>
+
+                      {/* ⚡ Instant Simulated Mobile Approval (Zero Bank Downtime / Local testing) */}
+                      <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-center space-y-1">
+                        <p className="text-[11px] text-emerald-300 font-medium">
+                          Quick test or want instant gateway release?
+                        </p>
+                        <Button
+                          type="button"
+                          variant="brand"
+                          size="sm"
+                          disabled={status === "capturing" || (over && !consent)}
+                          onClick={() => handleVerifyUpi(false)}
+                          className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow h-8 cursor-pointer"
+                        >
+                          <Sparkles className="size-3.5 mr-1" /> ⚡ 1-Click Simulate Mobile App Approval
+                        </Button>
                       </div>
 
                       <div className="flex items-center justify-center gap-2 text-xs font-mono text-muted-foreground">
