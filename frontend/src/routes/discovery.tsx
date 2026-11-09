@@ -96,9 +96,15 @@ function Discovery() {
     const city = defAddr.city?.toLowerCase() || "bhubaneswar";
     const phone = defAddr.phone || "+91 9178305324";
     const merchantName = p.merchant?.toLowerCase().includes("amazon") ? "amazon" : "zomato";
+    const zomatoUrl = p.merchantUrl || `https://www.zomato.com/${city}/delivery`;
+
+    // Open real merchant portal directly in user's active Edge browser tab
+    try {
+      window.open(zomatoUrl, "_blank");
+    } catch (_) {}
 
     toast.info(`🚀 Autonomous Browser Agent Dispatched (${merchantName.toUpperCase()})`, {
-      description: `Opening persistent Microsoft Edge session to stage ${cleanDish || p.title} in your cart...`,
+      description: `Opened Zomato in Edge and staging ${cleanDish || p.title} in your cart...`,
     });
 
     try {
@@ -203,7 +209,8 @@ function Discovery() {
 
   // Auto-Select and Launch Confirmation when Autonomous mode was triggered
   useEffect(() => {
-    if (auto === "true" && topProduct && !selectedProduct && !authOpen) {
+    const isAuto = auto === "true" || auto === '"true"' || auto === '%22true%22';
+    if (isAuto && topProduct && !selectedProduct && !authOpen) {
       if (isFoodProduct(topProduct)) {
         toast.info("Autonomous Winner Picked: " + topProduct.title, {
           description: "Click '🚀 Order on Zomato' to launch real Microsoft Edge directly!",

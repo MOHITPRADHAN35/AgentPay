@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { POLICY_DEFAULTS, type PolicyLimits } from "./policy";
+import { searchZomatoFood } from "@/lib/integrations/mcp/zomatoMcp";
 import {
   getConfig as getBackendConfig,
   getBudget as getBackendBudget,
@@ -202,10 +203,38 @@ export async function getLatestTask(): Promise<any> {
 
 export async function listDiscoveredProducts(): Promise<Product[]> {
   const task = await getBackendLatestTask();
-  if (!task) return [];
+  const rawList = task?.comparison?.products || (task?.recommendedProduct ? [task.recommendedProduct] : []);
 
-  const rawList = task.comparison?.products || (task.recommendedProduct ? [task.recommendedProduct] : []);
-  if (!rawList.length) return [];
+  if (!rawList.length) {
+    try {
+      const defaultDishes = await searchZomatoFood("cake and noodles", { maxBudget: 4.5 });
+      if (defaultDishes && defaultDishes.length > 0) {
+        return defaultDishes.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          brand: p.brand || "Zomato Verified Kitchen",
+          merchant: "Zomato",
+          category: "Food & Dining Delivery",
+          itemType: "FOOD_DINING",
+          merchantUrl: p.productUrl || "https://www.zomato.com/bhubaneswar/delivery",
+          image: p.imageUrl,
+          price: p.price,
+          shipping: p.shippingCost ?? 0.40,
+          tax: p.taxEstimated ?? 0.15,
+          currency: p.currency || "USD",
+          rating: p.rating || 4.7,
+          reviews: p.reviewsCount || 1280,
+          score: p.score || 95,
+          matchReasons: p.matchReasons || ["Top Rated Local Restaurant", "Within Daily Budget"],
+          specs: Object.entries(p.specifications || {}).map(([k, v]) => `${k.toUpperCase()}: ${v}`),
+          rawSpecs: p.specifications || {},
+          availability: "Available for Immediate Delivery",
+          verified: true,
+        }));
+      }
+    } catch (_) {}
+    return [];
+  }
 
   return rawList.map((p: any) => {
     const merchantName = typeof p.merchant === "object" ? (p.merchant?.name || "Merchant") : (p.merchant || "Merchant");

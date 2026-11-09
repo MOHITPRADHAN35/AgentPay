@@ -116,6 +116,11 @@ function Comparisons() {
     const city = defAddr.city?.toLowerCase() || "bhubaneswar";
     const phone = defAddr.phone || "+91 9178305324";
 
+    const zomatoUrl = p.merchantUrl || `https://www.zomato.com/${city}/delivery`;
+    try {
+      window.open(zomatoUrl, "_blank");
+    } catch (_) {}
+
     toast.info("🚀 Launching Edge Browser Agent...", {
       description: `Opening real Microsoft Edge to automate Zomato order for ${cleanDish || p.title}...`,
     });

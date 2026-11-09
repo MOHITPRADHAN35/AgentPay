@@ -62,6 +62,17 @@ export async function runZomatoBrowserAgent(options = {}) {
   onProgress(`Target Destination: ${address} (${city.toUpperCase()})`);
   onProgress(`Registered User Phone: ${phone}`);
 
+  // Open directly in user's active desktop browser session
+  try {
+    const { exec } = await import("child_process");
+    const targetUrl = `https://www.zomato.com/${city.toLowerCase()}/delivery`;
+    if (executablePath.toLowerCase().includes("msedge")) {
+      exec(`start msedge "${targetUrl}"`);
+    } else {
+      exec(`start chrome "${targetUrl}"`);
+    }
+  } catch (_) {}
+
   let context;
   try {
     context = await chromium.launchPersistentContext(userDataDir, {

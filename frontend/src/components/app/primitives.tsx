@@ -11,11 +11,9 @@ export function Reveal({ children, delay = 0, className }: { children: ReactNode
     <motion.div
       className={className}
       data-scroll-reveal
-      initial={reduce ? false : { opacity: 0, y: 36 }}
-      {...(reduce ? { animate: { opacity: 1, y: 0 } } : {})}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, amount: 0.2 }}
-      transition={{ duration: reduce ? 0 : 0.75, delay: reduce ? 0 : delay, ease: [0.22, 1, 0.36, 1] }}
+      initial={reduce ? false : { opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduce ? 0 : 0.45, delay: reduce ? 0 : delay, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
     </motion.div>
