@@ -305,13 +305,20 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 
 // 6. Real-World Zomato Playwright Browser Agent Endpoint
 app.post('/api/browser-agent/zomato', async (req, res) => {
-  const { dish = 'noodles', maxBudget = 300, phone = '+91 9178305324', address } = req.body || {};
+  const {
+    dish = 'noodles',
+    maxBudget = 300,
+    phone = '+91 9178305324',
+    address = 'ITER MAIN GATE, JAGAMARA, BHUBANESHWAR, Odisha 751030',
+    city = 'bhubaneswar',
+  } = req.body || {};
   try {
     runZomatoBrowserAgent({
       dish,
       maxBudget: Number(maxBudget),
       phone,
       address,
+      city,
       onProgress: (m) => console.log(`[BrowserAgent API] ${m}`)
     }).catch((err) => console.error('[BrowserAgent Error]', err));
 
@@ -320,7 +327,9 @@ app.post('/api/browser-agent/zomato', async (req, res) => {
       status: 'LAUNCHED',
       message: 'Visible Google Chrome instance launched on your screen for Zomato checkout.',
       phone,
-      dish
+      dish,
+      city,
+      address,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

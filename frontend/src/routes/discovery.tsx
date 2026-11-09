@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { ScanSearch, Sparkles, Fingerprint, ShieldCheck, Star } from "lucide-react";
+import { ScanSearch, Sparkles, ExternalLink, Star, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,22 @@ import { ProductCard } from "@/components/app/ProductCard";
 import { AuthorizationDialog } from "@/components/app/AuthorizationDialog";
 import { productsQuery, budgetQuery, getLatestTask, type Product } from "@/lib/agentpay/api";
 import { formatUSD } from "@/lib/agentpay/policy";
+import { getDefaultAddress } from "@/lib/services/addressService";
+import { cn } from "@/lib/utils";
+
+function isFoodProduct(p: Product | null | undefined): boolean {
+  if (!p) return false;
+  return Boolean(
+    p.category?.toLowerCase().includes("food") ||
+    p.itemType === "FOOD_DINING" ||
+    p.id?.toLowerCase().includes("zomato") ||
+    p.id?.toLowerCase().includes("menu_") ||
+    p.merchant?.toLowerCase().includes("zomato") ||
+    /(zomato|swiggy|china|berco|tossin|pizza|chowmein|noodle|biryani|pasta|burger)/i.test(
+      (p.title || "") + " " + (p.merchant || "")
+    )
+  );
+}
 
 const discoverySearchSchema = z.object({
   auto: z.string().optional(),
@@ -43,21 +59,75 @@ function Discovery() {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [browserLaunching, setBrowserLaunching] = useState(false);
 
   const topProduct = products && products.length > 0 ? products[0] : null;
+
+  const handleDispatchBrowserAgent = async (p: Product) => {
+    setBrowserLaunching(true);
+    const cleanDish = p.title
+      .replace(/\(Wow! China\)/gi, "")
+      .replace(/\(Berco's.*?\)/gi, "")
+      .replace(/\(Quarter Plate\)/gi, "")
+      .replace(/Bowl/gi, "")
+      .trim();
+
+    const defAddr = getDefaultAddress();
+    const deliveryStr = `${defAddr.street}, ${defAddr.city} ${defAddr.postalCode}`;
+    const city = defAddr.city?.toLowerCase() || "bhubaneswar";
+    const phone = defAddr.phone || "+91 9178305324";
+
+    toast.info("🚀 Launching Chrome Browser Agent...", {
+      description: `Opening real Google Chrome to automate Zomato order for ${cleanDish || p.title}...`,
+    });
+
+    try {
+      const res = await fetch("http://localhost:5000/api/browser-agent/zomato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dish: cleanDish || p.title,
+          maxBudget: 300,
+          phone,
+          city,
+          address: deliveryStr,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Google Chrome Active on Screen!", {
+          description: `Zomato opened for ${cleanDish || p.title}. Check your desktop to finalize!`,
+        });
+      }
+    } catch (err: any) {
+      toast.error("Could not reach backend browser agent: " + err.message);
+    } finally {
+      setBrowserLaunching(false);
+    }
+  };
 
   // Auto-Select and Launch Confirmation when Autonomous mode was triggered
   useEffect(() => {
     if (auto === "true" && topProduct && !selectedProduct && !authOpen) {
-      setSelectedProduct(topProduct);
-      setAuthOpen(true);
-      toast.info("Autonomous Winner Selected", {
-        description: `ComparisonAgent benchmarked ratings and prices. Please review and confirm your order before payment.`,
-      });
+      if (isFoodProduct(topProduct)) {
+        toast.info("Autonomous Winner Picked: " + topProduct.title, {
+          description: "Click '🚀 Order with Chrome Agent' to launch real Google Chrome directly!",
+        });
+      } else {
+        setSelectedProduct(topProduct);
+        setAuthOpen(true);
+        toast.info("Autonomous Winner Selected", {
+          description: `ComparisonAgent benchmarked ratings and prices. Please review and confirm your order before payment.`,
+        });
+      }
     }
   }, [auto, topProduct]);
 
   const handleSelect = (product: Product) => {
+    if (isFoodProduct(product)) {
+      void handleDispatchBrowserAgent(product);
+      return;
+    }
     setSelectedProduct(product);
     setAuthOpen(true);
   };
@@ -118,10 +188,25 @@ function Discovery() {
                 <Button
                   variant="brand"
                   size="default"
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-primary hover:from-blue-500 hover:to-indigo-500 shadow-md text-white font-semibold cursor-pointer"
+                  disabled={browserLaunching}
+                  className={cn(
+                    "flex items-center gap-2 shadow-md text-white font-semibold cursor-pointer",
+                    isFoodProduct(topProduct)
+                      ? "bg-gradient-to-r from-rose-600 via-pink-600 to-rose-500 hover:from-rose-500 hover:to-pink-500 shadow-rose-950/20"
+                      : "bg-gradient-to-r from-blue-600 via-indigo-600 to-primary hover:from-blue-500 hover:to-indigo-500"
+                  )}
                   onClick={() => handleSelect(topProduct)}
                 >
-                  <Sparkles className="size-4" /> Review &amp; Confirm Order
+                  {isFoodProduct(topProduct) ? (
+                    <>
+                      {browserLaunching ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+                      {browserLaunching ? "Launching Chrome..." : "🚀 Order on Zomato"}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-4" /> Review &amp; Confirm Order
+                    </>
+                  )}
                 </Button>
               </div>
             </div>

@@ -302,7 +302,50 @@ export function AuthorizationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {status === "success" && completedTx ? (
+        {isFoodOrder(product) ? (
+          /* REAL-WORLD ZOMATO BROWSER AGENT DISPATCH (NO FAKE SIMULATION) */
+          <div className="space-y-4 py-2">
+            <div className="flex gap-3 rounded-lg border border-glass-border bg-glass p-3.5">
+              <div className="size-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                {product.image && <img src={product.image} alt="" className="size-full object-cover" />}
+              </div>
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold line-clamp-2">{product.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{product.merchant}</p>
+                <p className="text-sm font-bold text-emerald-500 font-mono mt-1">
+                  ₹{Math.round(total * 86)} INR <span className="text-xs font-normal text-muted-foreground">({formatUSD(total)})</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs space-y-1 font-mono">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="flex items-center gap-1.5"><MapPin className="size-3.5 text-primary" /> Delivery Destination:</span>
+                <span className="font-bold text-foreground uppercase bg-primary/10 px-1.5 py-0.5 rounded text-[10px]">{selectedAddress.alias}</span>
+              </div>
+              <p className="text-foreground font-medium pt-1">{selectedAddress.name} · {selectedAddress.phone}</p>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">{selectedAddress.street}, {selectedAddress.city} {selectedAddress.postalCode}</p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <Button
+                type="button"
+                variant="brand"
+                size="default"
+                onClick={() => {
+                  handleLaunchBrowserAgent();
+                  onOpenChange(false);
+                }}
+                className="w-full h-11 text-sm font-semibold bg-gradient-to-r from-rose-600 via-pink-600 to-rose-500 hover:from-rose-500 hover:to-pink-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="size-4" /> 🚀 Order on Zomato (Launch Chrome Agent)
+              </Button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Launches your real Google Chrome browser on your desktop to search, cart, and open real Zomato checkout.
+              </p>
+            </div>
+          </div>
+        ) : status === "success" && completedTx ? (
           <div className="space-y-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
               <CheckCircle2 className="size-7" />
@@ -312,70 +355,11 @@ export function AuthorizationDialog({
               <p className="mt-1 text-xs text-muted-foreground">Recorded on cryptographic audit ledger and synchronized with merchant delivery pipeline.</p>
             </div>
 
-            {/* Zomato Live Order Tracker Card */}
-            {zomatoOrder && (
-              <div className="rounded-xl border border-emerald-500/40 bg-card p-4 text-left space-y-2.5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-                    <UtensilsCrossed className="size-3.5 text-rose-500" /> {zomatoOrder.restaurantName}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-bold">
-                      MCP SIMULATION
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-semibold animate-pulse">
-                      ● Kitchen Preparing
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-xs space-y-1">
-                  <p className="font-mono text-[11px] text-muted-foreground">Order Ref: <span className="text-foreground font-semibold">{zomatoOrder.orderId}</span></p>
-                  <p className="text-foreground font-medium">{product.title}</p>
-                </div>
-
-                <div className="border-t border-border/60 pt-2 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Bike className="size-3.5 text-emerald-500" />
-                    <span>Rider: <b className="text-foreground">{zomatoOrder.deliveryExecutive?.name}</b> (Simulated)</span>
-                  </div>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">ETA ~{zomatoOrder.estimatedDeliveryMins} mins</span>
-                </div>
-
-                <div className="rounded-lg bg-muted/60 p-2 text-[11px] text-muted-foreground leading-relaxed border border-border/40">
-                  <p className="font-medium text-foreground">💡 Hackathon MCP Demo Notice:</p>
-                  <p>Zero real rupees were charged to your bank. This demonstrates how an autonomous AI agent interfaces with merchant delivery APIs. To place an actual real-life order, launch the Chrome Browser Agent below.</p>
-                </div>
-              </div>
-            )}
-
             <dl className="space-y-1.5 rounded-lg border border-border bg-background/50 p-3 font-mono text-xs">
-              <div className="flex justify-between"><dt className="text-muted-foreground">{completedTx.captureId?.startsWith("UPI") ? "UPI Order Ref" : "PayPal Order"}</dt><dd className="text-foreground">{completedTx.paypalOrderId}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">{completedTx.captureId?.startsWith("UPI") ? "Bank UTR Number" : "Capture ID"}</dt><dd className="text-foreground font-semibold text-emerald-400">{completedTx.captureId}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Authorized Total</dt><dd className="font-semibold text-foreground">{formatUSD(completedTx.amount)} {completedTx.currency} (₹{Math.round(completedTx.amount * 86)} INR)</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Order Reference</dt><dd className="text-foreground">{completedTx.paypalOrderId}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Capture ID</dt><dd className="text-foreground font-semibold text-emerald-400">{completedTx.captureId}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Authorized Total</dt><dd className="font-semibold text-foreground">{formatUSD(completedTx.amount)} {completedTx.currency}</dd></div>
             </dl>
-
-            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-left font-mono text-xs space-y-1">
-              <div className="flex items-center justify-between text-emerald-400 font-semibold">
-                <span className="flex items-center gap-1.5"><MapPin className="size-3.5" /> Dispatched Directly To</span>
-                <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 px-1.5 py-0.5 rounded font-bold">{selectedAddress.alias}</span>
-              </div>
-              <p className="text-foreground">{selectedAddress.name} · {selectedAddress.phone}</p>
-              <p className="text-muted-foreground">{selectedAddress.street}{selectedAddress.landmark ? `, ${selectedAddress.landmark}` : ""}, {selectedAddress.city} {selectedAddress.postalCode}</p>
-              <p className="text-emerald-600 dark:text-emerald-400 text-[11px] pt-1">Estimated Courier Arrival: 20-25 Mins (Express Kitchen Dispatch)</p>
-            </div>
-
-            {isFoodOrder(product) && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full text-xs font-semibold border-rose-500/40 text-rose-500 dark:text-rose-300 hover:bg-rose-500/10 cursor-pointer flex items-center justify-center gap-1.5"
-                onClick={handleLaunchBrowserAgent}
-              >
-                <ExternalLink className="size-3.5 text-rose-500" />
-                🌐 Order Real Food: Launch Chrome Browser Agent
-              </Button>
-            )}
 
             <Button variant="default" className="w-full bg-emerald-600 hover:bg-emerald-500 cursor-pointer" onClick={() => onOpenChange(false)}>
               Close &amp; View Ledger

@@ -12,14 +12,31 @@ import {
   SlidersHorizontal,
   CheckCircle2,
   TrendingUp,
-  MessageSquareQuote
+  MessageSquareQuote,
+  Loader2
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, GlassCard, PageHeader, Reveal } from "@/components/app/primitives";
 import { AuthorizationDialog } from "@/components/app/AuthorizationDialog";
 import { productsQuery, budgetQuery, getLatestTask, type Product } from "@/lib/agentpay/api";
 import { formatUSD } from "@/lib/agentpay/policy";
+import { getDefaultAddress } from "@/lib/services/addressService";
 import { cn } from "@/lib/utils";
+
+function isFoodProduct(p: Product | null | undefined): boolean {
+  if (!p) return false;
+  return Boolean(
+    p.category?.toLowerCase().includes("food") ||
+    p.itemType === "FOOD_DINING" ||
+    p.id?.toLowerCase().includes("zomato") ||
+    p.id?.toLowerCase().includes("menu_") ||
+    p.merchant?.toLowerCase().includes("zomato") ||
+    /(zomato|swiggy|china|berco|tossin|pizza|chowmein|noodle|biryani|pasta|burger)/i.test(
+      (p.title || "") + " " + (p.merchant || "")
+    )
+  );
+}
 
 export const Route = createFileRoute("/comparisons")({
   head: () => ({
@@ -82,7 +99,51 @@ function Comparisons() {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [browserLaunching, setBrowserLaunching] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("recommended");
+
+  const handleDispatchBrowserAgent = async (p: Product) => {
+    setBrowserLaunching(true);
+    const cleanDish = p.title
+      .replace(/\(Wow! China\)/gi, "")
+      .replace(/\(Berco's.*?\)/gi, "")
+      .replace(/\(Quarter Plate\)/gi, "")
+      .replace(/Bowl/gi, "")
+      .trim();
+
+    const defAddr = getDefaultAddress();
+    const deliveryStr = `${defAddr.street}, ${defAddr.city} ${defAddr.postalCode}`;
+    const city = defAddr.city?.toLowerCase() || "bhubaneswar";
+    const phone = defAddr.phone || "+91 9178305324";
+
+    toast.info("🚀 Launching Chrome Browser Agent...", {
+      description: `Opening real Google Chrome to automate Zomato order for ${cleanDish || p.title}...`,
+    });
+
+    try {
+      const res = await fetch("http://localhost:5000/api/browser-agent/zomato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dish: cleanDish || p.title,
+          maxBudget: 300,
+          phone,
+          city,
+          address: deliveryStr,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Google Chrome Active on Screen!", {
+          description: `Zomato opened for ${cleanDish || p.title}. Check your desktop to finalize!`,
+        });
+      }
+    } catch (err: any) {
+      toast.error("Could not reach backend browser agent: " + err.message);
+    } finally {
+      setBrowserLaunching(false);
+    }
+  };
 
   const rawCompared = products?.slice(0, 4) || [];
 
@@ -438,13 +499,28 @@ function Comparisons() {
                         <Button
                           variant={i === 0 ? "brand" : "glass"}
                           size="sm"
-                          className="w-full text-xs font-semibold"
+                          disabled={browserLaunching}
+                          className={cn(
+                            "w-full text-xs font-semibold cursor-pointer",
+                            isFoodProduct(p) && "bg-rose-600 hover:bg-rose-500 text-white"
+                          )}
                           onClick={() => {
+                            if (isFoodProduct(p)) {
+                              void handleDispatchBrowserAgent(p);
+                              return;
+                            }
                             setSelectedProduct(p);
                             setAuthOpen(true);
                           }}
                         >
-                          {i === 0 ? "Authorize Recommended" : "Select Option"}
+                          {isFoodProduct(p) ? (
+                            <>
+                              {browserLaunching ? <Loader2 className="size-3 animate-spin mr-1" /> : <ExternalLink className="size-3 mr-1" />}
+                              🚀 Order on Zomato
+                            </>
+                          ) : (
+                            i === 0 ? "Authorize Recommended" : "Select Option"
+                          )}
                         </Button>
                       </td>
                     ))}
@@ -517,13 +593,28 @@ function Comparisons() {
                       <Button
                         variant={i === 0 ? "brand" : "glass"}
                         size="sm"
-                        className="w-full text-xs"
+                        disabled={browserLaunching}
+                        className={cn(
+                          "w-full text-xs cursor-pointer font-semibold",
+                          isFoodProduct(p) && "bg-rose-600 hover:bg-rose-500 text-white"
+                        )}
                         onClick={() => {
+                          if (isFoodProduct(p)) {
+                            void handleDispatchBrowserAgent(p);
+                            return;
+                          }
                           setSelectedProduct(p);
                           setAuthOpen(true);
                         }}
                       >
-                        {i === 0 ? "Authorize Winner" : "Select Option"}
+                        {isFoodProduct(p) ? (
+                          <>
+                            {browserLaunching ? <Loader2 className="size-3 animate-spin mr-1" /> : <ExternalLink className="size-3 mr-1" />}
+                            🚀 Order on Zomato
+                          </>
+                        ) : (
+                          i === 0 ? "Authorize Winner" : "Select Option"
+                        )}
                       </Button>
                     </div>
                   </GlassCard>

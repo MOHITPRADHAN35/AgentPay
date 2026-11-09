@@ -30,9 +30,9 @@ export async function runZomatoBrowserAgent(options = {}) {
   const {
     dish = "noodles",
     maxBudget = 300,
-    city = "bangalore",
+    city = "bhubaneswar",
     phone = "+91 9178305324",
-    address = "Room 304, Block B Boys Hostel, Tech Campus, Electronic City, Bengaluru",
+    address = "ITER MAIN GATE, JAGAMARA, BHUBANESHWAR, Odisha 751030",
     onProgress = (msg) => console.log(`[BrowserAgent] ${msg}`),
   } = options;
 
@@ -48,18 +48,33 @@ export async function runZomatoBrowserAgent(options = {}) {
   }
 
   onProgress(`Launching real Google Chrome from: ${executablePath}`);
-  onProgress(`Using persistent agent session: ${userDataDir}`);
+  onProgress(`Target Destination: ${address} (${city.toUpperCase()})`);
+  onProgress(`Registered User Phone: ${phone}`);
 
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    executablePath,
-    headless: false, // Visible window so user can watch and scan UPI QR
-    viewport: { width: 1280, height: 800 },
-    args: [
-      "--start-maximized",
-      "--disable-blink-features=AutomationControlled", // Helps prevent anti-bot false triggers
-      "--no-sandbox",
-    ],
-  });
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      executablePath,
+      headless: false, // Visible window so user can watch and scan UPI QR
+      args: [
+        "--start-maximized",
+        "--disable-blink-features=AutomationControlled", // Helps prevent anti-bot false triggers
+        "--no-sandbox",
+      ],
+    });
+  } catch (launchErr) {
+    onProgress(`Persistent profile busy, launching fresh browser window: ${launchErr.message}`);
+    const browser = await chromium.launch({
+      executablePath,
+      headless: false,
+      args: [
+        "--start-maximized",
+        "--disable-blink-features=AutomationControlled",
+        "--no-sandbox",
+      ],
+    });
+    context = await browser.newContext();
+  }
 
   const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 

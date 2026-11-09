@@ -8,6 +8,11 @@ import { cn } from "@/lib/utils";
 
 export function ProductCard({ p, selected, onSelect, onCompare }: { p: Product; selected?: boolean; onSelect: () => void; onCompare: () => void }) {
   const total = p.price + (p.shipping ?? 0) + (p.tax ?? 0);
+  const isFood = Boolean(
+    p.category?.toLowerCase().includes("food") ||
+    p.itemType === "FOOD_DINING" ||
+    /(zomato|swiggy|china|berco|tossin|pizza|chowmein|noodle|biryani)/i.test((p.title || "") + " " + (p.merchant || ""))
+  );
   return (
     <motion.article whileHover={{ y: -4 }} className={cn("group glass overflow-hidden rounded-xl transition-colors", selected ? "ring-2 ring-primary" : "hover:border-ring/30")}>
       <div className="aspect-[4/3] overflow-hidden bg-muted">
@@ -30,7 +35,17 @@ export function ProductCard({ p, selected, onSelect, onCompare }: { p: Product; 
         <div className="flex gap-2">
           {p.merchantUrl && <Button variant="ghost" size="icon" asChild><a href={p.merchantUrl} target="_blank" rel="noreferrer" aria-label="View merchant website"><ExternalLink /></a></Button>}
           <Button variant="glass" size="sm" onClick={onCompare} className="flex-1">Compare</Button>
-          <Button variant="brand" size="sm" onClick={onSelect} className="flex-1">Select & Authorize</Button>
+          <Button
+            variant="brand"
+            size="sm"
+            onClick={onSelect}
+            className={cn(
+              "flex-1 cursor-pointer font-semibold",
+              isFood && "bg-rose-600 hover:bg-rose-500 text-white shadow"
+            )}
+          >
+            {isFood ? "🚀 Order on Zomato" : "Select & Authorize"}
+          </Button>
         </div>
       </div>
     </motion.article>
