@@ -12,12 +12,14 @@ export interface ParsedIntent {
 export function heuristicParseIntent(query: string): ParsedIntent {
   const q = query.toLowerCase();
 
-  // Extract explicit budget if present (e.g. "under $1200", "under ₹90,000", "under 200 rupees", "budget 50 dollars")
+  // Extract explicit budget if present (e.g. "under $1200", "under ₹90,000", "under 200 rupees", "under 300", "budget 50 dollars")
   let targetBudget: number | undefined;
   const budgetMatch = query.match(/(?:under|below|max|budget(?:\s*of)?)\s*(?:[\$₹]|usd)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:rupees?|rs\.?|inr|usd|\$|bucks)?/i);
   if (budgetMatch && budgetMatch[1]) {
     const rawNum = parseFloat(budgetMatch[1].replace(/,/g, ""));
-    const isRupee = query.includes("₹") || /rupees?|rs\.?|inr/i.test(query);
+    const isRupee = query.includes("₹") ||
+      /rupees?|rs\.?|inr/i.test(query) ||
+      (/(zomato|swiggy|food|noodle|noodles|chowmein|pizza|burger|biryani|pasta)/i.test(q) && !query.includes("$") && !/usd/i.test(query));
     if (isRupee) {
       targetBudget = Math.round((rawNum / 86) * 100) / 100;
     } else {
@@ -26,10 +28,13 @@ export function heuristicParseIntent(query: string): ParsedIntent {
   }
 
   // Food & Dining / Restaurant Delivery (Zomato MCP Server)
-  if (/(food|pizza|biryani|burger|sushi|pasta|chowmein|chow mein|noodles|chinese|hakka|momos|dim sum|rice|fried rice|dosa|idli|paneer|chicken|mutton|curry|thali|dal|naan|roti|sandwich|wrap|roll|kathi|tacos|burrito|snack|dessert|cake|ice cream|beverage|shake|coffee|tea|cafe|breakfast|lunch|dinner|meal|eat|hungry|order food|zomato|swiggy|restaurant|dish|takeaway|cuisine|manchurian|chilli|soup)/i.test(q)) {
-    const cleanDish = query.replace(/\b(buy|order|get|procure|find|me|a|an|the|from|on|zomato|swiggy|please|under|below|\$\d+|₹\d+)\b/gi, "").trim();
+  if (/(food|pizza|biryani|burger|sushi|pasta|chowmein|chow\s*mein|noodles?|chinese|hakka|momos|dim\s*sum|rice|fried\s*rice|dosa|idli|paneer|chicken|mutton|curry|thali|dal|naan|roti|sandwich|wrap|roll|kathi|tacos|burrito|snack|dessert|cake|ice\s*cream|beverage|shake|coffee|tea|cafe|breakfast|lunch|dinner|meal|eat|hungry|order\s*food|zomato|swiggy|restaurant|dish|takeaway|cuisine|manchurian|chilli|soup)/i.test(q)) {
+    const cleanDish = query
+      .replace(/\b(try|ordering|order|buy|get|procure|find|me|a|an|the|from|on|in|using|with|via|zomato|swiggy|please|under|below|for|to|at|my|home|office|hostel|\$\d+|₹\d+|\d+|rupees?|rs\.?|inr|usd|\$|bucks)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
     return {
-      cleanQuery: cleanDish || query.trim(),
+      cleanQuery: cleanDish || "noodles",
       category: "Food & Dining Delivery",
       itemType: "FOOD_DINING",
       discoveryStrategy: "ZOMATO_MCP",
@@ -96,6 +101,12 @@ export function heuristicParseIntent(query: string): ParsedIntent {
 }
 
 export async function parseIntentWithLLM(query: string): Promise<ParsedIntent> {
+  // If query mentions food, dining, noodles, chowmein, zomato, swiggy, etc., prioritize ZOMATO_MCP deterministically!
+  const isFood = /(food|zomato|swiggy|noodles?|chowmein|chow\s*mein|pizza|burger|biryani|pasta|dosa|thali|manchurian|chilli|momos|sandwich|wrap|meal|dinner|lunch|breakfast|restaurant|dish)/i.test(query);
+  if (isFood) {
+    return heuristicParseIntent(query);
+  }
+
   const apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return heuristicParseIntent(query);

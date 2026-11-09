@@ -16,14 +16,15 @@ export interface BudgetEvaluation {
 export function evaluateBudget(
   product: NormalizedProduct,
   currentSpentToday: number = 0,
-  currentReserved: number = 0
+  currentReserved: number = 0,
+  customLimits?: { dailyLimit?: number; singleTransactionLimit?: number }
 ): BudgetEvaluation {
   const itemPrice = round2(product.price);
   const taxAndShipping = round2((product.shippingCost || 0) + (product.taxEstimated || 0));
   const totalAmount = round2(itemPrice + taxAndShipping);
 
-  const dailyLimit = POLICY.dailyLimit;
-  const singleTransactionLimit = POLICY.singleTransactionLimit;
+  const dailyLimit = customLimits?.dailyLimit ?? POLICY.dailyLimit;
+  const singleTransactionLimit = customLimits?.singleTransactionLimit ?? POLICY.singleTransactionLimit;
   const currentTotalCommitted = round2(currentSpentToday + currentReserved);
   const remainingAllowance = Math.max(0, round2(dailyLimit - currentTotalCommitted));
 

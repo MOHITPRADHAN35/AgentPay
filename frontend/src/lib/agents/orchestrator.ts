@@ -17,7 +17,9 @@ export function parsePromptRequirements(prompt: string): {
   if (budgetMatch) {
     const rawNum = parseFloat(budgetMatch[1].replace(/,/g, ""));
     // Convert ₹ / rupees to approximate USD with 2 decimal precision
-    const isRupee = prompt.includes("₹") || /rupees?|rs\.?|inr/i.test(prompt);
+    const isRupee = prompt.includes("₹") ||
+      /rupees?|rs\.?|inr/i.test(prompt) ||
+      (/(zomato|swiggy|food|noodle|noodles|chowmein|pizza|burger|biryani|pasta)/i.test(prompt) && !prompt.includes("$") && !/usd/i.test(prompt));
     if (isRupee) {
       targetBudget = Math.round((rawNum / 86) * 100) / 100;
     } else {
@@ -25,8 +27,18 @@ export function parsePromptRequirements(prompt: string): {
     }
   }
 
+  const isFood = /(food|zomato|swiggy|noodles?|chowmein|chow\s*mein|pizza|burger|biryani|pasta)/i.test(prompt);
+  let cleanQuery = prompt.trim();
+  if (isFood) {
+    const stripped = prompt
+      .replace(/\b(try|ordering|order|buy|get|procure|find|me|a|an|the|from|on|in|using|with|via|zomato|swiggy|please|under|below|for|to|at|my|home|office|hostel|\$\d+|₹\d+|\d+|rupees?|rs\.?|inr|usd|\$|bucks)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (stripped) cleanQuery = stripped;
+  }
+
   return {
-    cleanQuery: prompt.trim(),
+    cleanQuery,
     category,
     targetBudget
   };

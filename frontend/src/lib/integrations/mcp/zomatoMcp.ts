@@ -540,7 +540,8 @@ export async function callZomatoMcpTool(toolName: string, args: Record<string, a
  */
 export function extractCleanFoodQuery(rawQuery: string): string {
   return rawQuery
-    .replace(/\b(buy|order|get|procure|find|me|a|an|the|from|on|in|zomato|swiggy|please|under|below|for|to|at|my|home|office|hostel|deliver|delivery|\$\d+|₹\d+|rupees?|rs\.?|inr)\b/gi, "")
+    .replace(/\b(try|ordering|order|buy|get|procure|find|me|a|an|the|from|on|in|using|with|via|zomato|swiggy|please|under|below|for|to|at|my|home|office|hostel|deliver|delivery|\$\d+|₹\d+|\d+|rupees?|rs\.?|inr|usd|\$|bucks)\b/gi, "")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }

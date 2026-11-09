@@ -49,6 +49,31 @@ describe("Agent Mode Order Confirmation & Payment-Time Windows Hello", () => {
     expect(task.deliveryAddress?.alias).toBe("Hostel");
   });
 
+  it("strictly routes 'try ordering noodles using zomato under 300' to Zomato MCP and NEVER Amazon", async () => {
+    const prompt = "try ordering noodles using zomato under 300";
+    const req = parsePromptRequirements(prompt);
+    expect(req.category).toBe("Food & Dining Delivery");
+    expect(req.cleanQuery.toLowerCase()).toContain("noodle");
+    // 300 INR converted to USD: ~3.49 USD
+    expect(req.targetBudget).toBeDefined();
+    expect(req.targetBudget).toBeLessThanOrEqual(3.60);
+    expect(req.targetBudget).toBeGreaterThanOrEqual(3.00);
+
+    const task = await executeOrchestrationPlan(prompt);
+    expect(task.status).toBe("READY_FOR_APPROVAL");
+    expect(task.recommendedProduct).toBeDefined();
+    const best = task.recommendedProduct!;
+
+    // Must be from Zomato / restaurant, strictly NOT Amazon
+    expect(best.merchant.name.toLowerCase()).not.toContain("amazon");
+    expect(best.merchant.name.toLowerCase()).toMatch(/(zomato|china|berco)/i);
+    expect(best.title.toLowerCase()).toMatch(/(noodle|chowmein)/i);
+
+    // Price must be within 300 rupees
+    const inrPrice = Math.round(best.price * 86);
+    expect(inrPrice).toBeLessThanOrEqual(300);
+  });
+
   it("places Zomato MCP order with real tracking, courier assignment, and Hostel address", async () => {
     const hostelAddress = {
       id: "addr_hostel_campus",
